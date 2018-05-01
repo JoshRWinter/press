@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <string>
+#include <type_traits>
 
 #include <string.h>
 #include <stdio.h>
@@ -181,19 +182,26 @@ namespace press
 			}
 		}
 
-		const char *length_and_conversion = get_format_string(arg);
-		if(length_and_conversion[0] == 's')
+		char format[20];
+
+		if(std::is_pointer<typename std::remove_reference<T>::type>::value)
+		{
+			printf("%p", (void*)&arg);
+			return;
+		}
+		else if(get_format_string(arg)[0] == 's')
 		{
 			const std::string argument = to_string(arg);
-			char format[20];
 			snprintf(format, sizeof(format), "%%%ss", spec.c_str());
 			printf(format, argument.c_str());
 			return;
 		}
-
-		char format[20];
-		snprintf(format, sizeof(format), "%%%s%s", spec.c_str(), get_format_string(arg));
-		printf(format, arg);
+		else
+		{
+			snprintf(format, sizeof(format), "%%%s%s", spec.c_str(), get_format_string(arg));
+			printf(format, arg);
+			return;
+		}
 	}
 
 	// interface

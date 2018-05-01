@@ -224,7 +224,7 @@ namespace press
 #endif
 
 		int index = 0;
-		const char dummy[sizeof...(Ts)] = { (output(fmt, index, ts), 1)... };
+		const char dummy[sizeof...(Ts)] = { (output(fmt, index, ts), (char)1)... };
 
 #if defined (__GNUC__)
 	#pragma GCC diagnostic pop

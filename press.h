@@ -4,6 +4,7 @@
 #include <cassert>
 #include <string>
 #include <type_traits>
+#include <memory>
 
 #include <string.h>
 #include <stdio.h>
@@ -73,34 +74,38 @@ namespace press
 	{
 	public:
 		printer(const std::string &format, int arg_count)
-			: m_fmt(format)
-			, m_spec_number(0)
+			: m_fmt(format.c_str())
+			, m_len(format.length())
 			, m_bookmark(0)
+			, m_spec_number(0)
+			, m_specs(new std::pair<unsigned, unsigned>[arg_count])
 		{
-			const bool balanced = is_balanced(m_fmt);
-			const int spec_count = count_specifiers(m_fmt);
+			// consistency checks
+			const bool balanced = is_balanced();
+			const int spec_count = count_specifiers();
 
-			if(arg_count < spec_count)
+			if(!balanced)
+				abort("specifer brackets are not balanced!");
+			else if(arg_count < spec_count)
 				abort("not enough parameters to print function!");
 			else if(arg_count > spec_count)
 				abort("too many parameters to print function!");
-			else if(!balanced)
-				abort("specifer brackets are not balanced!");
+
+			// store the specifiers
+			find_specs();
 		}
 
 		template <typename T> void output(const T &arg)
 		{
-			int start;
-			int length;
-			find_spec(m_spec_number++, start, length);
-			const std::string spec = m_fmt.substr(start + 1, length - 2);
 			const char *const format_string = get_format_string(arg);
+			const unsigned spec_begin = m_specs[m_spec_number].first;
+			const unsigned spec_len = m_specs[m_spec_number].second;
+			++m_spec_number;
+
+			print_plain(m_bookmark, spec_begin);
+			m_bookmark = spec_begin + spec_len;
 
 			char format[20];
-
-			print_plain(m_bookmark, start - 1);
-			m_bookmark = start + length;
-
 			if(std::is_pointer<typename std::remove_reference<T>::type>::value)
 			{
 				printf("%p", (void*)&arg);
@@ -109,91 +114,82 @@ namespace press
 			else if(format_string[0] == 's')
 			{
 				const std::string argument = to_string(arg);
-				snprintf(format, sizeof(format), "%%%ss", spec.c_str());
+				snprintf(format, sizeof(format), "%%%.*ss", spec_len - 2, m_fmt + spec_begin + 1);
 				printf(format, argument.c_str());
 				return;
 			}
 			else
 			{
-				snprintf(format, sizeof(format), "%%%s%s", spec.c_str(), format_string);
+				snprintf(format, sizeof(format), "%%%.*s%s", spec_len - 2, m_fmt + spec_begin + 1, format_string);
 				printf(format, arg);
 				return;
 			}
 		}
 
-		void print_plain(unsigned first, unsigned last)
+		void print_plain(unsigned start, unsigned spec_begin)
 		{
-			const auto pos = m_fmt.find("{{}", first);
+			const char *const substr = m_fmt + start;
+			const char *const found = strstr(substr, "{{}");
+			const unsigned index = found == NULL ? -1 : (found - m_fmt);
+			const unsigned len = found == NULL ? spec_begin - start : (index - start);
 
-			if(pos == std::string::npos || pos > last)
-			{
-				printf("%.*s", last - first + 1, m_fmt.c_str() + first);
-			}
+			if(found == NULL || index >= spec_begin)
+				printf("%.*s", len, substr);
 			else
 			{
-				print_plain(first, pos - 1);
-				printf("{");
-				print_plain(pos + 3, last);
+				printf("%.*s", len + 1, substr);
+				print_plain(index + 3, spec_begin);
 			}
 		}
 
-		int bookmark() const
+		unsigned bookmark() const
 		{
 			return m_bookmark;
 		}
 
 	private:
-		const std::string &m_fmt;
+		const char *const m_fmt;
+		const unsigned m_len;
+		unsigned m_bookmark;
 		int m_spec_number;
-		int m_bookmark;
+		std::unique_ptr<std::pair<unsigned, unsigned>[]> m_specs; // <beginning, length>
 
-		void find_spec(int number, int &start, int &length)
+		void find_specs()
 		{
-			const int len = m_fmt.length();
+			int index = 0;
 
-			int i;
-			for(i = 0; i < len; ++i)
+			for(unsigned i = 0; i < m_len; ++i)
 			{
 				const char c = m_fmt[i];
 
 				if(c == '{')
 				{
-					if(is_literal_brace(m_fmt, i))
+					if(is_literal_brace(i))
 					{
 						i += 2;
 					}
-					else if(number-- == 0)
+					else
 					{
-						const int partner = find_partner(m_fmt, i);
-						start = i;
-						length = partner - i + 1;
-						return;
+						m_specs[index].first = i;
+						m_specs[index].second = find_partner(i) - i + 1;
+						++index;
 					}
 				}
 			}
-
-			abort("couldn't find spec " + std::to_string(number));
 		}
 
-		static void abort(const std::string &msg)
+		bool is_literal_brace(unsigned index)
 		{
-			fprintf(stderr, "press: %s\n", msg.c_str());
-			std::abort();
+			return index <= m_len - 3 && m_fmt[index] == '{' && m_fmt[index + 1] == '{' && m_fmt[index + 2] == '}';
 		}
 
-		static bool is_literal_brace(const std::string &fmt, unsigned index)
+		bool is_balanced()
 		{
-			return fmt.find("{{}", index) == index;
-		}
-
-		static bool is_balanced(const std::string &fmt)
-		{
-			const int len = fmt.length();
 			bool open = false;
 
-			for(int i = 0; i < len; ++i)
+			for(unsigned i = 0; i < m_len; ++i)
 			{
-				const char c = fmt[i];
+				const char c = m_fmt[i];
 
 				if(c == '{')
 				{
@@ -202,7 +198,7 @@ namespace press
 
 					open = true;
 
-					if(is_literal_brace(fmt, i))
+					if(is_literal_brace(i))
 						++i;
 				}
 				else if(c == '}' && open)
@@ -214,18 +210,17 @@ namespace press
 			return !open;
 		}
 
-		static int count_specifiers(const std::string &fmt)
+		int count_specifiers()
 		{
-			const int len = fmt.length();
 			int count = 0;
 
-			for(int i = 0; i < len; ++i)
+			for(unsigned i = 0; i < m_len; ++i)
 			{
-				const char c = fmt[i];
+				const char c = m_fmt[i];
 
 				if(c == '{')
 				{
-					if(is_literal_brace(fmt, i))
+					if(is_literal_brace(i))
 					{
 						++i;
 						continue;
@@ -240,13 +235,11 @@ namespace press
 			return count;
 		}
 
-		static int find_partner(const std::string &fmt, int index)
+		unsigned find_partner(unsigned index)
 		{
-			const int len = fmt.length();
-
-			for(int i = index; i < len; ++i)
+			for(unsigned i = index; i < m_len; ++i)
 			{
-				const char c = fmt[i];
+				const char c = m_fmt[i];
 
 				if(c == '}')
 					return i;
@@ -254,6 +247,12 @@ namespace press
 
 			abort("could not find closing brace");
 			return 0;
+		}
+
+		static void abort(const std::string &msg)
+		{
+			fprintf(stderr, "press: %s\n", msg.c_str());
+			std::abort();
 		}
 	};
 
@@ -267,16 +266,15 @@ namespace press
 #endif
 		printer p(fmt, sizeof...(Ts));
 
-		int index = 0;
 		const char dummy[sizeof...(Ts)] = { (p.output(ts), (char)1)... };
 
 #if defined (__GNUC__)
 #pragma GCC diagnostic pop
 #endif
 
-		const int bookmark = p.bookmark();
-		if((unsigned)bookmark < fmt.length())
-			p.print_plain(bookmark, fmt.length() - 1);
+		const unsigned bookmark = p.bookmark();
+		if(bookmark < fmt.length())
+			p.print_plain(bookmark, fmt.length());
 	}
 }
 

@@ -29,13 +29,28 @@ examples
 2. press::write("the year is {5}", 2018); // "the year is  2018"
 3. press::write("the year is {05}", 2018); // "the year is 02018"
 4. press::write("the year is {-5}", 2018); // "the year is 2018 "
-5. press::write("pi is {.4}", 3.1415926); // "pi is 3.1415"
+5. press::write("pi is {.4}", 3.1415926); // "pi is 3.1416"
 6. press::write("my name is {}", "Bob"); // "my name is Bob" (the string argument can be std::string or char*)
 
 */
 
 namespace press
 {
+	template <typename T> std::string to_string(const T&)
+	{
+		return "unrecognized type";
+	}
+
+	template <> std::string to_string(const std::string &str)
+	{
+		return str;
+	}
+
+	template <unsigned N> std::string to_string(const char (&str)[N])
+	{
+		return str;
+	}
+
 	template <typename T> const char *get_format_string(const T&) { return "s"; }
 
 	template <> const char *get_format_string(const unsigned long long int&) { return "llu"; }
@@ -54,184 +69,214 @@ namespace press
 	template <> const char *get_format_string(const double&) { return "f"; }
 	template <> const char *get_format_string(const float&) { return "f"; }
 
-	typedef void* void_pointer;
-	template <> const char *get_format_string(const void_pointer&) { return "p"; }
-
-	template <typename T> std::string to_string(const T&)
+	class printer
 	{
-		return "unrecognized type";
-	}
-
-	template <> std::string to_string(const std::string &str)
-	{
-		return str;
-	}
-
-	template <unsigned N> std::string to_string(const char (&str)[N])
-	{
-		return str;
-	}
-
-	void abort(const std::string &msg)
-	{
-		fprintf(stderr, "press: %s\n", msg.c_str());
-		std::abort();
-	}
-
-	bool is_literal_brace(const std::string &fmt, unsigned index)
-	{
-		return fmt.find("{{}", index) == index;
-	}
-
-	bool is_balanced(const std::string &fmt)
-	{
-		const int len = fmt.length();
-		bool open = false;
-
-		for(int i = 0; i < len; ++i)
+	public:
+		printer(const std::string &format, int arg_count)
+			: m_fmt(format)
+			, m_spec_number(0)
+			, m_bookmark(0)
 		{
-			const char c = fmt[i];
+			const bool balanced = is_balanced(m_fmt);
+			const int spec_count = count_specifiers(m_fmt);
 
-			if(c == '{')
+			if(arg_count < spec_count)
+				abort("not enough parameters to print function!");
+			else if(arg_count > spec_count)
+				abort("too many parameters to print function!");
+			else if(!balanced)
+				abort("specifer brackets are not balanced!");
+		}
+
+		template <typename T> void output(const T &arg)
+		{
+			int start;
+			int length;
+			find_spec(m_spec_number++, start, length);
+			const std::string spec = m_fmt.substr(start + 1, length - 2);
+			const char *const format_string = get_format_string(arg);
+
+			char format[20];
+
+			print_plain(m_bookmark, start - 1);
+			m_bookmark = start + length;
+
+			if(std::is_pointer<typename std::remove_reference<T>::type>::value)
 			{
-				if(open)
-					return false;
-
-				open = true;
-
-				if(is_literal_brace(fmt, i))
-					++i;
+				printf("%p", (void*)&arg);
+				return;
 			}
-			else if(c == '}' && open)
+			else if(format_string[0] == 's')
 			{
-				open = false;
+				const std::string argument = to_string(arg);
+				snprintf(format, sizeof(format), "%%%ss", spec.c_str());
+				printf(format, argument.c_str());
+				return;
+			}
+			else
+			{
+				snprintf(format, sizeof(format), "%%%s%s", spec.c_str(), format_string);
+				printf(format, arg);
+				return;
 			}
 		}
 
-		return !open;
-	}
-
-	int count_specifiers(const std::string &fmt)
-	{
-		const int len = fmt.length();
-		int count = 0;
-
-		for(int i = 0; i < len; ++i)
+		void print_plain(unsigned first, unsigned last)
 		{
-			const char c = fmt[i];
+			const auto pos = m_fmt.find("{{}", first);
 
-			if(c == '{')
+			if(pos == std::string::npos || pos > last)
 			{
-				if(is_literal_brace(fmt, i))
+				printf("%.*s", last - first + 1, m_fmt.c_str() + first);
+			}
+			else
+			{
+				print_plain(first, pos - 1);
+				printf("{");
+				print_plain(pos + 3, last);
+			}
+		}
+
+		int bookmark() const
+		{
+			return m_bookmark;
+		}
+
+	private:
+		const std::string &m_fmt;
+		int m_spec_number;
+		int m_bookmark;
+
+		void find_spec(int number, int &start, int &length)
+		{
+			const int len = m_fmt.length();
+
+			int i;
+			for(i = 0; i < len; ++i)
+			{
+				const char c = m_fmt[i];
+
+				if(c == '{')
 				{
-					++i;
-					continue;
-				}
-				else
-				{
-					++count;
+					if(is_literal_brace(m_fmt, i))
+					{
+						i += 2;
+					}
+					else if(number-- == 0)
+					{
+						const int partner = find_partner(m_fmt, i);
+						start = i;
+						length = partner - i + 1;
+						return;
+					}
 				}
 			}
+
+			abort("couldn't find spec " + std::to_string(number));
 		}
 
-		return count;
-	}
-
-	int find_partner(const std::string &fmt, int index)
-	{
-		const int len = fmt.length();
-
-		for(int i = index; i < len; ++i)
+		static void abort(const std::string &msg)
 		{
-			const char c = fmt[i];
-
-			if(c == '}')
-				return i;
+			fprintf(stderr, "press: %s\n", msg.c_str());
+			std::abort();
 		}
 
-		abort("could not find closing brace");
-		return 0;
-	}
-
-	template <typename T> void output(const std::string &fmt, int &index, const T &arg)
-	{
-		const int start = index;
-
-		// find the specifier
-		std::string spec;
-		const int len = fmt.length();
-		for(int i = index; i < len; ++i)
+		static bool is_literal_brace(const std::string &fmt, unsigned index)
 		{
-			const char c = fmt[i];
+			return fmt.find("{{}", index) == index;
+		}
 
-			if(c == '{')
+		static bool is_balanced(const std::string &fmt)
+		{
+			const int len = fmt.length();
+			bool open = false;
+
+			for(int i = 0; i < len; ++i)
 			{
-				printf("%.*s", i - start, fmt.c_str() + start);
-				const int end = find_partner(fmt, i);
-				index = end + 1;
-				spec = fmt.substr(i + 1, end - i - 1);
+				const char c = fmt[i];
 
-				if(spec == "{")
+				if(c == '{')
 				{
-					printf("{");
-					output(fmt, index, arg);
-					return;
+					if(open)
+						return false;
+
+					open = true;
+
+					if(is_literal_brace(fmt, i))
+						++i;
 				}
-
-				break;
+				else if(c == '}' && open)
+				{
+					open = false;
+				}
 			}
+
+			return !open;
 		}
 
-		char format[20];
+		static int count_specifiers(const std::string &fmt)
+		{
+			const int len = fmt.length();
+			int count = 0;
 
-		if(std::is_pointer<typename std::remove_reference<T>::type>::value)
-		{
-			printf("%p", (void*)&arg);
-			return;
+			for(int i = 0; i < len; ++i)
+			{
+				const char c = fmt[i];
+
+				if(c == '{')
+				{
+					if(is_literal_brace(fmt, i))
+					{
+						++i;
+						continue;
+					}
+					else
+					{
+						++count;
+					}
+				}
+			}
+
+			return count;
 		}
-		else if(get_format_string(arg)[0] == 's')
+
+		static int find_partner(const std::string &fmt, int index)
 		{
-			const std::string argument = to_string(arg);
-			snprintf(format, sizeof(format), "%%%ss", spec.c_str());
-			printf(format, argument.c_str());
-			return;
+			const int len = fmt.length();
+
+			for(int i = index; i < len; ++i)
+			{
+				const char c = fmt[i];
+
+				if(c == '}')
+					return i;
+			}
+
+			abort("could not find closing brace");
+			return 0;
 		}
-		else
-		{
-			snprintf(format, sizeof(format), "%%%s%s", spec.c_str(), get_format_string(arg));
-			printf(format, arg);
-			return;
-		}
-	}
+	};
 
 	// interface
 	template <typename... Ts> void write(const std::string &fmt, const Ts&... ts)
 	{
-		const bool balanced = is_balanced(fmt);
-		const int arg_count = sizeof...(Ts);
-		const int spec_count = count_specifiers(fmt);
-
-		if(arg_count < spec_count)
-			abort("not enough parameters to print function!");
-		else if(arg_count > spec_count)
-			abort("too many parameters to print function!");
-		else if(!balanced)
-			abort("specifer brackets are not balanced!");
 
 #if defined (__GNUC__)
-	#pragma GCC diagnostic push
-	#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
 #endif
+		printer p(fmt, sizeof...(Ts));
 
 		int index = 0;
-		const char dummy[sizeof...(Ts)] = { (output(fmt, index, ts), (char)1)... };
+		const char dummy[sizeof...(Ts)] = { (p.output(ts), (char)1)... };
 
 #if defined (__GNUC__)
-	#pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
 #endif
 
-		if(index < (int)fmt.length())
-			printf("%.*s", (int)fmt.length() - index, fmt.c_str() + index);
+		const int bookmark = p.bookmark();
+		if((unsigned)bookmark < fmt.length())
+			p.print_plain(bookmark, fmt.length() - 1);
 	}
 }
 

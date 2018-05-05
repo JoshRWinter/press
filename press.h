@@ -256,7 +256,8 @@ namespace press
 		}
 	};
 
-	// interface
+	// interfaces
+
 	template <typename... Ts> void write(const std::string &fmt, const Ts&... ts)
 	{
 
@@ -275,6 +276,12 @@ namespace press
 		const unsigned bookmark = p.bookmark();
 		if(bookmark < fmt.length())
 			p.print_plain(bookmark, fmt.length());
+	}
+
+	template <typename... Ts> void writeln(const std::string &fmt, const Ts&... ts)
+	{
+		write(fmt, ts...);
+		puts("");
 	}
 }
 

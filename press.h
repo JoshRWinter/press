@@ -129,11 +129,12 @@ namespace press
 		void print_plain(unsigned start, unsigned spec_begin)
 		{
 			const char *const substr = m_fmt + start;
-			const char *const found = strstr(substr, "{{}");
-			const unsigned index = found == NULL ? -1 : (found - m_fmt);
-			const unsigned len = found == NULL ? spec_begin - start : (index - start);
+			const char *const position = strstr(substr, "{{}");
+			const bool found = position != NULL && position < m_fmt + spec_begin;
+			const unsigned index = found == false ? -1 : (position - m_fmt);
+			const unsigned len = found == false ? spec_begin - start : (index - start);
 
-			if(found == NULL || index >= spec_begin)
+			if(found == false)
 				printf("%.*s", len, substr);
 			else
 			{
@@ -176,6 +177,7 @@ namespace press
 					}
 				}
 			}
+
 		}
 
 		bool is_literal_brace(unsigned index)

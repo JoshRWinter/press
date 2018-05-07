@@ -70,36 +70,193 @@ namespace press
 	template <> const char *get_format_string(const double&) { return "f"; }
 	template <> const char *get_format_string(const float&) { return "f"; }
 
-	class printer
+	static void abort(const std::string &msg)
+	{
+		fprintf(stderr, "press: %s\n", msg.c_str());
+		std::abort();
+	}
+
+	class format_specifier
 	{
 	public:
-		printer(const std::string &format, int arg_count)
-			: m_fmt(format.c_str())
-			, m_len(format.length())
-			, m_bookmark(0)
-			, m_spec_number(0)
-			, m_specs(new std::pair<unsigned, unsigned>[arg_count])
+		unsigned spec() const { return m_spec_index; }
+		unsigned spec_len() const { return m_spec_len; }
+		unsigned content() const { return m_content_index; }
+		unsigned content_len() const { return m_content_len; }
+
+		void spec(unsigned i) { m_spec_index = i; }
+		void spec_len(unsigned l) { m_spec_len = l; }
+		void content(unsigned i) { m_content_index = i; }
+		void content_len(unsigned l) { m_content_len = l; }
+
+	private:
+		unsigned m_spec_index;
+		unsigned m_spec_len;
+		unsigned m_content_index;
+		unsigned m_content_len;
+	};
+
+	class specifier_list
+	{
+	public:
+		specifier_list(const char *format, unsigned pack_size)
 		{
+			const unsigned len = strlen(format);
 			// consistency checks
-			const bool balanced = is_balanced();
-			const int spec_count = count_specifiers();
+			const bool balanced = is_balanced(format, len);
+			const unsigned spec_count = count_specifiers(format, len);
 
 			if(!balanced)
 				abort("specifer brackets are not balanced!");
-			else if(arg_count < spec_count)
+			else if(pack_size < spec_count)
 				abort("not enough parameters to print function!");
-			else if(arg_count > spec_count)
+			else if(pack_size > spec_count)
 				abort("too many parameters to print function!");
 
+			// initialize storage
+			if(spec_count > DEFAULT_ARRAY_SIZE)
+			{
+				m_dynamic_array.reset(new format_specifier[spec_count]);
+				m_storage = m_dynamic_array.get();
+			}
+			else
+			{
+				m_storage = m_automatic_array;
+			}
+
 			// store the specifiers
-			find_specs();
+			find_specs(format, len);
 		}
+
+		const format_specifier &operator[](unsigned i) const
+		{
+			return m_storage[i];
+		}
+
+	private:
+		static const int DEFAULT_ARRAY_SIZE = 10;
+
+		void find_specs(const char *fmt, unsigned len)
+		{
+			int index = 0;
+
+			for(unsigned i = 0; i < len; ++i)
+			{
+				const char c = fmt[i];
+
+				if(c == '{')
+				{
+					if(is_literal_brace(fmt, len, i))
+					{
+						i += 2;
+					}
+					else
+					{
+						m_storage[index].spec(i);
+						m_storage[index].spec_len(find_partner(fmt, len, i) - i + 1);
+						m_storage[index].content(i + 1);
+						m_storage[index].content_len(m_storage[index].spec_len() - 2);
+
+						++index;
+					}
+				}
+			}
+		}
+
+		static bool is_balanced(const char *fmt, unsigned len)
+		{
+			bool open = false;
+
+			for(unsigned i = 0; i < len; ++i)
+			{
+				const char c = fmt[i];
+
+				if(c == '{')
+				{
+					if(open)
+						return false;
+
+					open = true;
+
+					if(is_literal_brace(fmt, len, i))
+						++i;
+				}
+				else if(c == '}' && open)
+				{
+					open = false;
+				}
+			}
+
+			return !open;
+		}
+
+		static unsigned count_specifiers(const char *fmt, unsigned len)
+		{
+			unsigned count = 0;
+
+			for(unsigned i = 0; i < len; ++i)
+			{
+				const char c = fmt[i];
+
+				if(c == '{')
+				{
+					if(is_literal_brace(fmt, len, i))
+					{
+						++i;
+						continue;
+					}
+					else
+					{
+						++count;
+					}
+				}
+			}
+
+			return count;
+		}
+
+		static bool is_literal_brace(const char *fmt, unsigned len, unsigned index)
+		{
+			return index <= len - 3 && fmt[index] == '{' && fmt[index + 1] == '{' && fmt[index + 2] == '}';
+		}
+
+		static unsigned find_partner(const char *fmt, unsigned len, unsigned index)
+		{
+			for(unsigned i = index; i < len; ++i)
+			{
+				const char c = fmt[i];
+
+				if(c == '}')
+					return i;
+			}
+
+			abort("could not find closing brace");
+			return 0;
+		}
+
+		format_specifier *m_storage;
+		format_specifier m_automatic_array[10];
+		std::unique_ptr<format_specifier> m_dynamic_array;
+	};
+
+	class printer
+	{
+	public:
+		printer(const char *format, int arg_count)
+			: m_fmt(format)
+			, m_len(strlen(format))
+			, m_bookmark(0)
+			, m_spec_number(0)
+			, m_specs(format, arg_count)
+		{}
 
 		template <typename T> void output(const T &arg)
 		{
 			const char *const format_string = get_format_string(arg);
-			const unsigned spec_begin = m_specs[m_spec_number].first;
-			const unsigned spec_len = m_specs[m_spec_number].second;
+			const unsigned spec_begin = m_specs[m_spec_number].spec();
+			const unsigned spec_len = m_specs[m_spec_number].spec_len();
+			const unsigned content_begin = m_specs[m_spec_number].content();
+			const unsigned content_len = m_specs[m_spec_number].content_len();
 			++m_spec_number;
 
 			print_plain(m_bookmark, spec_begin);
@@ -114,13 +271,13 @@ namespace press
 			else if(format_string[0] == 's')
 			{
 				const std::string argument = to_string(arg);
-				snprintf(format, sizeof(format), "%%%.*ss", spec_len - 2, m_fmt + spec_begin + 1);
+				snprintf(format, sizeof(format), "%%%.*ss", content_len, m_fmt + content_begin);
 				printf(format, argument.c_str());
 				return;
 			}
 			else
 			{
-				snprintf(format, sizeof(format), "%%%.*s%s", spec_len - 2, m_fmt + spec_begin + 1, format_string);
+				snprintf(format, sizeof(format), "%%%.*s%s", content_len, m_fmt + content_begin, format_string);
 				printf(format, arg);
 				return;
 			}
@@ -153,114 +310,12 @@ namespace press
 		const unsigned m_len;
 		unsigned m_bookmark;
 		int m_spec_number;
-		std::unique_ptr<std::pair<unsigned, unsigned>[]> m_specs; // <beginning, length>
-
-		void find_specs()
-		{
-			int index = 0;
-
-			for(unsigned i = 0; i < m_len; ++i)
-			{
-				const char c = m_fmt[i];
-
-				if(c == '{')
-				{
-					if(is_literal_brace(i))
-					{
-						i += 2;
-					}
-					else
-					{
-						m_specs[index].first = i;
-						m_specs[index].second = find_partner(i) - i + 1;
-						++index;
-					}
-				}
-			}
-
-		}
-
-		bool is_literal_brace(unsigned index)
-		{
-			return index <= m_len - 3 && m_fmt[index] == '{' && m_fmt[index + 1] == '{' && m_fmt[index + 2] == '}';
-		}
-
-		bool is_balanced()
-		{
-			bool open = false;
-
-			for(unsigned i = 0; i < m_len; ++i)
-			{
-				const char c = m_fmt[i];
-
-				if(c == '{')
-				{
-					if(open)
-						return false;
-
-					open = true;
-
-					if(is_literal_brace(i))
-						++i;
-				}
-				else if(c == '}' && open)
-				{
-					open = false;
-				}
-			}
-
-			return !open;
-		}
-
-		int count_specifiers()
-		{
-			int count = 0;
-
-			for(unsigned i = 0; i < m_len; ++i)
-			{
-				const char c = m_fmt[i];
-
-				if(c == '{')
-				{
-					if(is_literal_brace(i))
-					{
-						++i;
-						continue;
-					}
-					else
-					{
-						++count;
-					}
-				}
-			}
-
-			return count;
-		}
-
-		unsigned find_partner(unsigned index)
-		{
-			for(unsigned i = index; i < m_len; ++i)
-			{
-				const char c = m_fmt[i];
-
-				if(c == '}')
-					return i;
-			}
-
-			abort("could not find closing brace");
-			return 0;
-		}
-
-		static void abort(const std::string &msg)
-		{
-			fprintf(stderr, "press: %s\n", msg.c_str());
-			std::abort();
-		}
+		const specifier_list m_specs;
 	};
 
 	// interfaces
 
-	template <typename... Ts> void write(const std::string &fmt, const Ts&... ts)
+	template <typename... Ts> void write(const char *fmt, const Ts&... ts)
 	{
 
 #if defined (__GNUC__)
@@ -275,12 +330,13 @@ namespace press
 #pragma GCC diagnostic pop
 #endif
 
+		const unsigned format_len = strlen(fmt);
 		const unsigned bookmark = p.bookmark();
-		if(bookmark < fmt.length())
-			p.print_plain(bookmark, fmt.length());
+		if(bookmark < format_len)
+			p.print_plain(bookmark, format_len);
 	}
 
-	template <typename... Ts> void writeln(const std::string &fmt, const Ts&... ts)
+	template <typename... Ts> void writeln(const char *fmt, const Ts&... ts)
 	{
 		write(fmt, ts...);
 		puts("");

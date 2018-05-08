@@ -38,17 +38,20 @@ examples
 
 */
 
+#include <tuple>
+#define variadic_size(...) std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value
+
 #define pressfmt(fmt, count) \
 	static_assert(press::specifier_list::is_balanced(fmt, press::specifier_list::string_length(fmt)), "press: specifier brackets are not balanced!"); \
 	static_assert(press::specifier_list::count_specifiers(fmt, press::specifier_list::string_length(fmt)) >= count, "press: too many parameters!"); \
 	static_assert(press::specifier_list::count_specifiers(fmt, press::specifier_list::string_length(fmt)) <= count, "press: not enough parameters!");
 
 #define prwrite(fmt, ...) \
-	pressfmt(fmt, press::variadic_size(__VA_ARGS__)) \
+	pressfmt(fmt, variadic_size(__VA_ARGS__)) \
 	press::write_unchecked(fmt, __VA_ARGS__)
 
 #define prwriteln(fmt, ...) \
-	pressfmt(fmt, press::variadic_size(__VA_ARGS__)) \
+	pressfmt(fmt, variadic_size(__VA_ARGS__)) \
 	press::writeln_unchecked(fmt, __VA_ARGS__)
 
 namespace press
@@ -85,11 +88,6 @@ namespace press
 	template <> const char *get_format_string(const long double&) { return "Lf"; }
 	template <> const char *get_format_string(const double&) { return "f"; }
 	template <> const char *get_format_string(const float&) { return "f"; }
-
-	template <typename... Ts> constexpr unsigned variadic_size(const Ts&... ts)
-	{
-		return sizeof...(Ts);
-	}
 
 	static void abort(const std::string &msg)
 	{

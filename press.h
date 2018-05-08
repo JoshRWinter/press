@@ -1,13 +1,16 @@
 #ifndef PRESS_H
 #define PRESS_H
 
-#include <cassert>
-#include <string>
 #include <type_traits>
 #include <memory>
 
 #include <string.h>
 #include <stdio.h>
+
+// #define PRESS_NO_EXCEPT
+#ifndef PRESS_NO_EXCEPT
+#include <stdexcept>
+#endif // PRESS_NO_EXCEPT
 
 /* PRESS printing tool
 
@@ -34,6 +37,19 @@ examples
 6. press::write("my name is {}", "Bob"); // "my name is Bob" (the string argument can be std::string or char*)
 
 */
+
+#define pressfmt(fmt, count) \
+	static_assert(press::specifier_list::is_balanced(fmt, press::specifier_list::string_length(fmt)), "press: specifier brackets are not balanced!"); \
+	static_assert(press::specifier_list::count_specifiers(fmt, press::specifier_list::string_length(fmt)) >= count, "press: too many parameters!"); \
+	static_assert(press::specifier_list::count_specifiers(fmt, press::specifier_list::string_length(fmt)) <= count, "press: not enough parameters!");
+
+#define prwrite(fmt, ...) \
+	pressfmt(fmt, press::variadic_size(__VA_ARGS__)) \
+	press::write_unchecked(fmt, __VA_ARGS__)
+
+#define prwriteln(fmt, ...) \
+	pressfmt(fmt, press::variadic_size(__VA_ARGS__)) \
+	press::writeln_unchecked(fmt, __VA_ARGS__)
 
 namespace press
 {
@@ -70,10 +86,19 @@ namespace press
 	template <> const char *get_format_string(const double&) { return "f"; }
 	template <> const char *get_format_string(const float&) { return "f"; }
 
+	template <typename... Ts> constexpr unsigned variadic_size(const Ts&... ts)
+	{
+		return sizeof...(Ts);
+	}
+
 	static void abort(const std::string &msg)
 	{
+#ifdef PRESS_NO_EXCEPT
 		fprintf(stderr, "press: %s\n", msg.c_str());
 		std::abort();
+#else
+		throw std::runtime_error("press: " + msg);
+#endif // PRESS_NO_EXCEPT
 	}
 
 	class format_specifier
@@ -99,24 +124,28 @@ namespace press
 	class specifier_list
 	{
 	public:
-		specifier_list(const char *format, unsigned pack_size)
+		specifier_list(const char *format, unsigned pack_size, bool checked)
 		{
 			const unsigned len = strlen(format);
-			// consistency checks
-			const bool balanced = is_balanced(format, len);
-			const unsigned spec_count = count_specifiers(format, len);
 
-			if(!balanced)
-				abort("specifer brackets are not balanced!");
-			else if(pack_size < spec_count)
-				abort("not enough parameters to print function!");
-			else if(pack_size > spec_count)
-				abort("too many parameters to print function!");
+			// consistency checks
+			if(checked)
+			{
+				const bool balanced = is_balanced(format, len);
+				if(!balanced)
+					abort("specifer brackets are not balanced!");
+
+				const unsigned spec_count = count_specifiers(format, len);
+				if(pack_size < spec_count)
+					abort("not enough parameters to print function!");
+				else if(pack_size > spec_count)
+					abort("too many parameters to print function!");
+			}
 
 			// initialize storage
-			if(spec_count > DEFAULT_ARRAY_SIZE)
+			if(pack_size > DEFAULT_ARRAY_SIZE)
 			{
-				m_dynamic_array.reset(new format_specifier[spec_count]);
+				m_dynamic_array.reset(new format_specifier[pack_size]);
 				m_storage = m_dynamic_array.get();
 			}
 			else
@@ -126,6 +155,56 @@ namespace press
 
 			// store the specifiers
 			find_specs(format, len);
+		}
+
+		static constexpr unsigned string_length(const char *fmt, unsigned count = 0, unsigned index = 0)
+		{
+			return
+			(fmt[index] == 0) ?
+				(count)
+				: (string_length(fmt, count + 1, index + 1));
+		}
+
+		static constexpr bool is_balanced(const char *fmt, unsigned len, unsigned index = 0, bool open = false)
+		{
+			return
+			(index == len) ?
+				(!open)
+				: ((fmt[index] == '{') ?
+					((is_literal_brace(fmt, len, index)) ?
+						(is_balanced(fmt, len, index + 3, open))
+						: (is_balanced(fmt, len, index + 1, true)))
+					: ((fmt[index] == '}' && open) ?
+						(is_balanced(fmt, len, index + 1, false))
+						: (is_balanced(fmt, len, index + 1, open))));
+		}
+
+		static constexpr unsigned count_specifiers(const char *fmt, unsigned len, unsigned count = 0, unsigned index = 0)
+		{
+			return
+			(index == len) ?
+				(count)
+				: ((fmt[index] == '{') ?
+					((is_literal_brace(fmt, len, index)) ?
+						(count_specifiers(fmt, len, count, index + 3))
+						: (count_specifiers(fmt, len, count + 1, find_partner(fmt, len, index) + 1)))
+					: (count_specifiers(fmt, len, count, index + 1)));
+		}
+
+		static constexpr bool is_literal_brace(const char *fmt, unsigned len, unsigned index)
+		{
+			return
+			(index > len - 3) ?
+				(false)
+				: (fmt[index] == '{' && fmt[index + 1] == '{' && fmt[index + 2] == '}');
+		}
+
+		static constexpr unsigned find_partner(const char *fmt, unsigned len, unsigned index)
+		{
+			return
+			(fmt[index] == '}') ?
+				(index)
+				: (find_partner(fmt, len, index + 1));
 		}
 
 		const format_specifier &operator[](unsigned i) const
@@ -163,77 +242,6 @@ namespace press
 			}
 		}
 
-		static bool is_balanced(const char *fmt, unsigned len)
-		{
-			bool open = false;
-
-			for(unsigned i = 0; i < len; ++i)
-			{
-				const char c = fmt[i];
-
-				if(c == '{')
-				{
-					if(open)
-						return false;
-
-					open = true;
-
-					if(is_literal_brace(fmt, len, i))
-						++i;
-				}
-				else if(c == '}' && open)
-				{
-					open = false;
-				}
-			}
-
-			return !open;
-		}
-
-		static unsigned count_specifiers(const char *fmt, unsigned len)
-		{
-			unsigned count = 0;
-
-			for(unsigned i = 0; i < len; ++i)
-			{
-				const char c = fmt[i];
-
-				if(c == '{')
-				{
-					if(is_literal_brace(fmt, len, i))
-					{
-						++i;
-						continue;
-					}
-					else
-					{
-						++count;
-					}
-				}
-			}
-
-			return count;
-		}
-
-		static bool is_literal_brace(const char *fmt, unsigned len, unsigned index)
-		{
-			return index <= len - 3 && fmt[index] == '{' && fmt[index + 1] == '{' && fmt[index + 2] == '}';
-		}
-
-		static unsigned find_partner(const char *fmt, unsigned len, unsigned index)
-		{
-			for(unsigned i = index; i < len; ++i)
-			{
-				const char c = fmt[i];
-
-				if(c == '}')
-					return i;
-			}
-
-			abort("could not find closing brace");
-			return 0;
-		}
-
 		format_specifier *m_storage;
 		format_specifier m_automatic_array[10];
 		std::unique_ptr<format_specifier> m_dynamic_array;
@@ -242,12 +250,13 @@ namespace press
 	class printer
 	{
 	public:
-		printer(const char *format, int arg_count)
+		printer(const char *format, unsigned arg_count, bool checked = true)
 			: m_fmt(format)
 			, m_len(strlen(format))
+			, m_pack_size(arg_count)
 			, m_bookmark(0)
 			, m_spec_number(0)
-			, m_specs(format, arg_count)
+			, m_specs(format, arg_count, checked)
 		{}
 
 		template <typename T> void output(const T &arg)
@@ -283,6 +292,13 @@ namespace press
 			}
 		}
 
+		void finish()
+		{
+			if(m_pack_size == m_spec_number && m_bookmark < m_len)
+				print_plain(m_bookmark, m_len);
+		}
+
+	private:
 		void print_plain(unsigned start, unsigned spec_begin)
 		{
 			const char *const substr = m_fmt + start;
@@ -300,16 +316,11 @@ namespace press
 			}
 		}
 
-		unsigned bookmark() const
-		{
-			return m_bookmark;
-		}
-
-	private:
 		const char *const m_fmt;
 		const unsigned m_len;
+		const unsigned m_pack_size;
 		unsigned m_bookmark;
-		int m_spec_number;
+		unsigned m_spec_number;
 		const specifier_list m_specs;
 	};
 
@@ -317,28 +328,69 @@ namespace press
 
 	template <typename... Ts> void write(const char *fmt, const Ts&... ts)
 	{
+		#if defined (__GNUC__)
+		#pragma GCC diagnostic push
+		#pragma GCC diagnostic ignored "-Wunused-variable"
+		#endif
 
-#if defined (__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-variable"
-#endif
 		printer p(fmt, sizeof...(Ts));
-
 		const char dummy[sizeof...(Ts)] = { (p.output(ts), (char)1)... };
+		p.finish();
 
-#if defined (__GNUC__)
-#pragma GCC diagnostic pop
-#endif
-
-		const unsigned format_len = strlen(fmt);
-		const unsigned bookmark = p.bookmark();
-		if(bookmark < format_len)
-			p.print_plain(bookmark, format_len);
+		#if defined (__GNUC__)
+		#pragma GCC diagnostic pop
+		#endif
 	}
 
 	template <typename... Ts> void writeln(const char *fmt, const Ts&... ts)
 	{
-		write(fmt, ts...);
+		#if defined (__GNUC__)
+		#pragma GCC diagnostic push
+		#pragma GCC diagnostic ignored "-Wunused-variable"
+		#endif
+
+		printer p(fmt, sizeof...(Ts));
+		const char dummy[sizeof...(Ts)] = { (p.output(ts), (char)1)... };
+		p.finish();
+
+		#if defined (__GNUC__)
+		#pragma GCC diagnostic pop
+		#endif
+
+		puts("");
+	}
+
+	template <typename... Ts> void write_unchecked(const char *fmt, const Ts&... ts)
+	{
+		#if defined (__GNUC__)
+		#pragma GCC diagnostic push
+		#pragma GCC diagnostic ignored "-Wunused-variable"
+		#endif
+
+		printer p(fmt, sizeof...(Ts), false);
+		const char dummy[sizeof...(Ts)] = { (p.output(ts), (char)1)... };
+		p.finish();
+
+		#if defined (__GNUC__)
+		#pragma GCC diagnostic pop
+		#endif
+	}
+
+	template <typename... Ts> void writeln_unchecked(const char *fmt, const Ts&... ts)
+	{
+		#if defined (__GNUC__)
+		#pragma GCC diagnostic push
+		#pragma GCC diagnostic ignored "-Wunused-variable"
+		#endif
+
+		printer p(fmt, sizeof...(Ts), false);
+		const char dummy[sizeof...(Ts)] = { (p.output(ts), (char)1)... };
+		p.finish();
+
+		#if defined (__GNUC__)
+		#pragma GCC diagnostic pop
+		#endif
+
 		puts("");
 	}
 }

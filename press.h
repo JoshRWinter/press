@@ -42,9 +42,9 @@ examples
 #define variadic_size(...) std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value
 
 #define pressfmt(fmt, count) \
-	static_assert(press::specifier_list::is_balanced(fmt, press::specifier_list::string_length(fmt)), "press: specifier brackets are not balanced!"); \
-	static_assert(press::specifier_list::count_specifiers(fmt, press::specifier_list::string_length(fmt)) >= count, "press: too many parameters!"); \
-	static_assert(press::specifier_list::count_specifiers(fmt, press::specifier_list::string_length(fmt)) <= count, "press: not enough parameters!");
+	static_assert(press::printer::is_balanced(fmt, press::specifier_list::string_length(fmt)), "press: specifier brackets are not balanced!"); \
+	static_assert(press::printer::count_specifiers(fmt, press::printer::string_length(fmt)) >= count, "press: too many parameters!"); \
+	static_assert(press::printer::count_specifiers(fmt, press::printer::string_length(fmt)) <= count, "press: not enough parameters!");
 
 #define prwrite(fmt, ...) \
 	pressfmt(fmt, variadic_size(__VA_ARGS__)) \
@@ -66,29 +66,6 @@ namespace press
 		return str;
 	}
 
-	template <unsigned N> std::string to_string(const char (&str)[N])
-	{
-		return str;
-	}
-
-	template <typename T> const char *get_format_string(const T&) { return "s"; }
-
-	template <> const char *get_format_string(const unsigned long long int&) { return "llu"; }
-	template <> const char *get_format_string(const unsigned long int&) { return "lu"; }
-	template <> const char *get_format_string(const unsigned int&) { return "u"; }
-	template <> const char *get_format_string(const unsigned short&) { return "hu"; }
-	template <> const char *get_format_string(const unsigned char&) { return "hhu"; }
-
-	template <> const char *get_format_string(const long long int&) { return "lld"; }
-	template <> const char *get_format_string(const long int&) { return "ld"; }
-	template <> const char *get_format_string(const int&) { return "d"; }
-	template <> const char *get_format_string(const short&) { return "hd"; }
-	template <> const char *get_format_string(const char&) { return "c"; }
-
-	template <> const char *get_format_string(const long double&) { return "Lf"; }
-	template <> const char *get_format_string(const double&) { return "f"; }
-	template <> const char *get_format_string(const float&) { return "f"; }
-
 	static void abort(const std::string &msg)
 	{
 #ifdef PRESS_NO_EXCEPT
@@ -99,297 +76,436 @@ namespace press
 #endif // PRESS_NO_EXCEPT
 	}
 
-	class format_specifier
+	struct settings
 	{
-	public:
-		unsigned spec() const { return m_spec_index; }
-		unsigned spec_len() const { return m_spec_len; }
-		unsigned content() const { return m_content_index; }
-		unsigned content_len() const { return m_content_len; }
+		settings(const char *fmt, unsigned first, unsigned len)
+		{
+			enum class states
+			{
+				READING_FLAGS,
+				READING_WIDTH,
+				READING_PRECISION,
+				READING_INDEX
+			};
 
-		void spec(unsigned i) { m_spec_index = i; }
-		void spec_len(unsigned l) { m_spec_len = l; }
-		void content(unsigned i) { m_content_index = i; }
-		void content_len(unsigned l) { m_content_len = l; }
+			reset();
+			states state = states::READING_FLAGS;
 
-	private:
-		unsigned m_spec_index;
-		unsigned m_spec_len;
-		unsigned m_content_index;
-		unsigned m_content_len;
+			for(unsigned i = 0; i < len;)
+			{
+				const char c = fmt[first + i];
+
+				if(state == states::READING_FLAGS)
+				{
+					state = states::READING_WIDTH;
+
+					switch(c)
+					{
+						case '0':
+							zero_pad = true;
+							break;
+						case '-':
+							left_justify = true;
+							break;
+						default:
+							continue;
+					}
+				}
+				else if(state == states::READING_WIDTH)
+				{
+					if(c == '.')
+					{
+						state = states::READING_PRECISION;
+						continue;
+					}
+					else if(c == '@')
+					{
+						state = states::READING_INDEX;
+						continue;
+					}
+					else if(!isdigit(c))
+					{
+						reset();
+						break;
+					}
+
+					width *= 10;
+					width += c - '0';
+				}
+				else if(state == states::READING_PRECISION)
+				{
+					if(c != '.')
+					{
+						if(c == '@')
+						{
+							state = states::READING_INDEX;
+							continue;
+						}
+						if(!isdigit(c))
+						{
+							reset();
+							break;
+						}
+
+						precision *= 10;
+						precision += c - '0';
+					}
+				}
+				else if(state == states::READING_INDEX)
+				{
+					if(c != '@')
+					{
+						if(!isdigit(c))
+						{
+							reset();
+							break;
+						}
+
+						if(index == -1)
+							index = 0;
+
+						index *= 10;
+						index += c - '0';
+					}
+				}
+
+				++i;
+			}
+		}
+
+		void reset(){ zero_pad = false; left_justify = false; width = 0; precision = 0; index = -1; }
+
+		// flags
+		bool zero_pad;
+		bool left_justify;
+
+		unsigned width;
+		unsigned precision;
+		int index; // starts at 1
 	};
 
-	class specifier_list
+	class parameter
 	{
 	public:
-		specifier_list(const char *format, unsigned pack_size, bool checked)
+		enum class ptype
 		{
-			const unsigned len = strlen(format);
+			FLOAT64,
+			FLOAT32,
+			SIGNED_INT,
+			UNSIGNED_INT,
+			BOOLEAN_,
+			CHARACTER,
+			STRING,
+			POINTER
+		};
 
-			// consistency checks
-			if(checked)
+		parameter() : type(ptype::FLOAT64), object(NULL) {}
+
+		void init(const double &d)
+		{
+			type = ptype::FLOAT64;
+			object = &d;
+		}
+
+		void init(const float &f)
+		{
+			type = ptype::FLOAT32;
+			object = &f;
+		}
+
+		void init(const signed long long &i)
+		{
+			type = ptype::SIGNED_INT;
+			object = &i;
+		}
+
+		void init(const unsigned long long &i)
+		{
+			type = ptype::UNSIGNED_INT;
+			object = &i;
+		}
+
+		void init(const bool &b)
+		{
+			type = ptype::BOOLEAN_;
+			object = &b;
+		}
+
+		void init(const char &c)
+		{
+			type = ptype::CHARACTER;
+			object = &c;
+		}
+
+		void init(const char *s)
+		{
+			type = ptype::STRING;
+			object = s;
+		}
+
+		void init(const void *v)
+		{
+			type = ptype::POINTER;
+			object = v;
+		}
+
+		const char *convert(char *buffer, unsigned size, const settings &format) const
+		{
+			switch(type)
 			{
-				const bool balanced = is_balanced(format, len);
-				if(!balanced)
-					abort("specifer brackets are not balanced!");
-
-				const unsigned spec_count = count_specifiers(format, len);
-				if(pack_size < spec_count)
-					abort("not enough parameters to print function!");
-				else if(pack_size > spec_count)
-					abort("too many parameters to print function!");
+				case ptype::SIGNED_INT:
+					return convert_int(buffer, size, format);
+				case ptype::UNSIGNED_INT:
+					return convert_uint(buffer, size, format);
+				case ptype::STRING:
+					return (const char*)object;
+				case ptype::FLOAT32:
+					return convert_float32(buffer, size, format);
+				case ptype::CHARACTER:
+					return convert_uint(buffer, size, format);
+				case ptype::FLOAT64:
+					return convert_float64(buffer, size, format);
+				case ptype::BOOLEAN_:
+					return convert_bool(buffer, size, format);
+				case ptype::POINTER:
+					return convert_pointer(buffer, size, format);
+				default:
+					abort("unrecognized enum case: " + std::to_string((int)type));
+					break;
 			}
 
-			// initialize storage
-			if(pack_size > DEFAULT_ARRAY_SIZE)
-			{
-				m_dynamic_array.reset(new format_specifier[pack_size]);
-				m_storage = m_dynamic_array.get();
-			}
-			else
-			{
-				m_storage = m_automatic_array;
-			}
-
-			// store the specifiers
-			find_specs(format, len);
-		}
-
-		static constexpr unsigned string_length(const char *fmt, unsigned count = 0, unsigned index = 0)
-		{
-			return
-			(fmt[index] == 0) ?
-				(count)
-				: (string_length(fmt, count + 1, index + 1));
-		}
-
-		static constexpr bool is_balanced(const char *fmt, unsigned len, unsigned index = 0, bool open = false)
-		{
-			return
-			(index == len) ?
-				(!open)
-				: ((fmt[index] == '{') ?
-					((is_literal_brace(fmt, len, index)) ?
-						(is_balanced(fmt, len, index + 3, open))
-						: (is_balanced(fmt, len, index + 1, true)))
-					: ((fmt[index] == '}' && open) ?
-						(is_balanced(fmt, len, index + 1, false))
-						: (is_balanced(fmt, len, index + 1, open))));
-		}
-
-		static constexpr unsigned count_specifiers(const char *fmt, unsigned len, unsigned count = 0, unsigned index = 0)
-		{
-			return
-			(index == len) ?
-				(count)
-				: ((fmt[index] == '{') ?
-					((is_literal_brace(fmt, len, index)) ?
-						(count_specifiers(fmt, len, count, index + 3))
-						: (count_specifiers(fmt, len, count + 1, find_partner(fmt, len, index) + 1)))
-					: (count_specifiers(fmt, len, count, index + 1)));
-		}
-
-		static constexpr bool is_literal_brace(const char *fmt, unsigned len, unsigned index)
-		{
-			return
-			(index > len - 3) ?
-				(false)
-				: (fmt[index] == '{' && fmt[index + 1] == '{' && fmt[index + 2] == '}');
-		}
-
-		static constexpr unsigned find_partner(const char *fmt, unsigned len, unsigned index)
-		{
-			return
-			(fmt[index] == '}') ?
-				(index)
-				: (find_partner(fmt, len, index + 1));
-		}
-
-		const format_specifier &operator[](unsigned i) const
-		{
-			return m_storage[i];
+			return NULL;
 		}
 
 	private:
-		static const int DEFAULT_ARRAY_SIZE = 10;
-
-		void find_specs(const char *fmt, unsigned len)
+		const char *convert_float64(char *buffer, unsigned size, const settings &format) const
 		{
-			int index = 0;
+			snprintf(buffer, size, "double with zp=%s, lj=%s, width=%u, precs=%u, index=%i", format.zero_pad ? "true" : "false", format.left_justify ? "true" : "false", format.width, format.precision, format.index);
+			return buffer;
+		}
 
-			for(unsigned i = 0; i < len; ++i)
+		const char *convert_float32(char *buffer, unsigned size, const settings &format) const
+		{
+			snprintf(buffer, size, "float with zp=%s, lj=%s, width=%u, precs=%u, index=%i", format.zero_pad ? "true" : "false", format.left_justify ? "true" : "false", format.width, format.precision, format.index);
+			return buffer;
+		}
+
+		const char *convert_int(char *buffer, unsigned size, const settings &format) const
+		{
+			snprintf(buffer, size, "int with zp=%s, lj=%s, width=%u, precs=%u, index=%i", format.zero_pad ? "true" : "false", format.left_justify ? "true" : "false", format.width, format.precision, format.index);
+			return buffer;
+		}
+
+		const char *convert_uint(char *buffer, unsigned size, const settings &format) const
+		{
+			snprintf(buffer, size, "uint with zp=%s, lj=%s, width=%u, precs=%u, index=%i", format.zero_pad ? "true" : "false", format.left_justify ? "true" : "false", format.width, format.precision, format.index);
+			return buffer;
+		}
+
+		const char *convert_bool(char *buffer, unsigned size, const settings &format) const
+		{
+			snprintf(buffer, size, "bool with zp=%s, lj=%s, width=%u, precs=%u, index=%i", format.zero_pad ? "true" : "false", format.left_justify ? "true" : "false", format.width, format.precision, format.index);
+			return buffer;
+		}
+
+		const char *convert_character(char *buffer, unsigned size, const settings &format) const
+		{
+			snprintf(buffer, size, "char with zp=%s, lj=%s, width=%u, precs=%u, index=%i", format.zero_pad ? "true" : "false", format.left_justify ? "true" : "false", format.width, format.precision, format.index);
+			return buffer;
+		}
+
+		const char *convert_pointer(char *buffer, unsigned size, const settings &format) const
+		{
+			snprintf(buffer, size, "pointer with zp=%s, lj=%s, width=%u, precs=%u, index=%i", format.zero_pad ? "true" : "false", format.left_justify ? "true" : "false", format.width, format.precision, format.index);
+			return buffer;
+		}
+
+		ptype type;
+		const void *object;
+	};
+
+	constexpr unsigned string_length(const char *fmt, unsigned count = 0, unsigned index = 0)
+	{
+		return
+		(fmt[index] == 0) ?
+			(count)
+			: (string_length(fmt, count + 1, index + 1));
+	}
+
+	constexpr bool is_literal_brace(const char *fmt, unsigned len, unsigned index)
+	{
+		return
+		(index > len - 3) ?
+			(false)
+			: (fmt[index] == '{' && fmt[index + 1] == '{' && fmt[index + 2] == '}');
+	}
+
+	constexpr bool is_balanced(const char *fmt, unsigned len, unsigned index = 0, bool open = false)
+	{
+		return
+		(index == len) ?
+			(!open)
+			: ((fmt[index] == '{') ?
+				((is_literal_brace(fmt, len, index)) ?
+					(is_balanced(fmt, len, index + 3, open))
+					: (is_balanced(fmt, len, index + 1, true)))
+				: ((fmt[index] == '}' && open) ?
+					(is_balanced(fmt, len, index + 1, false))
+					: (is_balanced(fmt, len, index + 1, open))));
+	}
+
+	constexpr unsigned find_partner(const char *fmt, unsigned len, unsigned index)
+	{
+		return
+		(fmt[index] == '}') ?
+			(index)
+			: (find_partner(fmt, len, index + 1));
+	}
+
+	constexpr unsigned count_specifiers(const char *fmt, unsigned len, unsigned count = 0, unsigned index = 0)
+	{
+		return
+		(index == len) ?
+			(count)
+			: ((fmt[index] == '{') ?
+				((is_literal_brace(fmt, len, index)) ?
+					(count_specifiers(fmt, len, count, index + 3))
+					: (count_specifiers(fmt, len, count + 1, find_partner(fmt, len, index) + 1)))
+				: (count_specifiers(fmt, len, count, index + 1)));
+	}
+
+	void print_plain(const char *fmt, unsigned start, unsigned spec_begin)
+	{
+		const char *const substr = fmt + start;
+		const char *const position = strstr(substr, "{{}");
+		const bool found = position != NULL && position < fmt + spec_begin;
+		const unsigned index = found == false ? -1 : (position - fmt);
+		const unsigned len = found == false ? spec_begin - start : (index - start);
+
+		if(found == false)
+			printf("%.*s", len, substr);
+		else
+		{
+			printf("%.*s", len + 1, substr);
+			print_plain(fmt, index + 3, spec_begin);
+		}
+	}
+
+	void printer(const char *const fmt, const parameter *const params, const unsigned param_count, bool checked)
+	{
+		const unsigned fmt_len = strlen(fmt);
+
+		// consistency checks
+		if(checked)
+		{
+			if(!is_balanced(fmt, fmt_len))
+				abort("specifier brackets are not balanced");
+
+			const unsigned spec_count = count_specifiers(fmt, fmt_len);
+			if(spec_count < param_count)
+				abort("too many parameters!");
+			else if(spec_count > param_count)
+				abort("not enough parameters");
+		}
+
+		// conversion buffer
+		char conversions[501];
+
+		// begin printing
+		unsigned bookmark = 0;
+		for(unsigned k = 0; k < param_count; ++k)
+		{
+			// find the first open specifier bracket and extract the spec
+			unsigned spec_len = 0;
+			unsigned spec_begin = bookmark;
+			unsigned spec_end = spec_begin;
+			for(; spec_begin < fmt_len; ++spec_begin)
 			{
-				const char c = fmt[i];
+				const char c = fmt[spec_begin];
 
 				if(c == '{')
 				{
-					if(is_literal_brace(fmt, len, i))
+					if(is_literal_brace(fmt, fmt_len, spec_begin))
 					{
-						i += 2;
+						spec_begin += 2;
+						continue;
 					}
 					else
 					{
-						m_storage[index].spec(i);
-						m_storage[index].spec_len(find_partner(fmt, len, i) - i + 1);
-						m_storage[index].content(i + 1);
-						m_storage[index].content_len(m_storage[index].spec_len() - 2);
-
-						++index;
+						spec_end = find_partner(fmt, fmt_len, spec_begin);
+						spec_len = spec_end - spec_begin - 1;
+						break;
 					}
 				}
 			}
+
+			// print the "before text"
+			print_plain(fmt, bookmark, spec_begin);
+
+			settings format_settings(fmt, spec_begin + 1, spec_len);
+			const char *const buf = params[k].convert(conversions, sizeof(conversions), format_settings);
+			printf("{%s}", buf);
+
+			bookmark = spec_end + 1;
 		}
 
-		format_specifier *m_storage;
-		format_specifier m_automatic_array[10];
-		std::unique_ptr<format_specifier> m_dynamic_array;
-	};
+		if(bookmark < fmt_len)
+			print_plain(fmt, bookmark, fmt_len);
+	}
 
-	class printer
-	{
-	public:
-		printer(const char *format, unsigned arg_count, bool checked = true)
-			: m_fmt(format)
-			, m_len(strlen(format))
-			, m_pack_size(arg_count)
-			, m_bookmark(0)
-			, m_spec_number(0)
-			, m_specs(format, arg_count, checked)
-		{}
+	// fallback
+	template <typename T> inline void add(const T&, parameter*, unsigned&) { }
 
-		template <typename T> void output(const T &arg)
-		{
-			const char *const format_string = get_format_string(arg);
-			const unsigned spec_begin = m_specs[m_spec_number].spec();
-			const unsigned spec_len = m_specs[m_spec_number].spec_len();
-			const unsigned content_begin = m_specs[m_spec_number].content();
-			const unsigned content_len = m_specs[m_spec_number].content_len();
-			++m_spec_number;
+	typedef const char* constchar_p;
+	// meaningfull specializations
+	template <> inline void add(const unsigned long long &x, parameter *array, unsigned &index) { array[index++].init(x); }
+	template <> inline void add(const long long &x, parameter *array, unsigned &index) { array[index++].init(x); }
+	template <> inline void add(const char &x, parameter *array, unsigned &index) { array[index++].init(x); }
+	template <> inline void add(const double &x, parameter *array, unsigned &index) { array[index++].init(x); }
+	template <> inline void add(const float &x, parameter *array, unsigned &index) { array[index++].init(x); }
+	template <> inline void add(const constchar_p &x, parameter *array, unsigned &index) { array[index++].init(x); }
+	template <> inline void add(const bool &x, parameter *array, unsigned &index) { array[index++].init(x); }
 
-			print_plain(m_bookmark, spec_begin);
-			m_bookmark = spec_begin + spec_len;
-
-			char format[20];
-			if(std::is_pointer<typename std::remove_reference<T>::type>::value)
-			{
-				printf("%p", (void*)&arg);
-				return;
-			}
-			else if(format_string[0] == 's')
-			{
-				const std::string argument = to_string(arg);
-				snprintf(format, sizeof(format), "%%%.*ss", content_len, m_fmt + content_begin);
-				printf(format, argument.c_str());
-				return;
-			}
-			else
-			{
-				snprintf(format, sizeof(format), "%%%.*s%s", content_len, m_fmt + content_begin, format_string);
-				printf(format, arg);
-				return;
-			}
-		}
-
-		void finish()
-		{
-			if(m_pack_size == m_spec_number && m_bookmark < m_len)
-				print_plain(m_bookmark, m_len);
-		}
-
-	private:
-		void print_plain(unsigned start, unsigned spec_begin)
-		{
-			const char *const substr = m_fmt + start;
-			const char *const position = strstr(substr, "{{}");
-			const bool found = position != NULL && position < m_fmt + spec_begin;
-			const unsigned index = found == false ? -1 : (position - m_fmt);
-			const unsigned len = found == false ? spec_begin - start : (index - start);
-
-			if(found == false)
-				printf("%.*s", len, substr);
-			else
-			{
-				printf("%.*s", len + 1, substr);
-				print_plain(index + 3, spec_begin);
-			}
-		}
-
-		const char *const m_fmt;
-		const unsigned m_len;
-		const unsigned m_pack_size;
-		unsigned m_bookmark;
-		unsigned m_spec_number;
-		const specifier_list m_specs;
-	};
+	// specializations that delegate to other specializations
+	template <> inline void add(const unsigned long &x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
+	template <> inline void add(const unsigned &x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
+	template <> inline void add(const unsigned short &x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
+	template <> inline void add(const unsigned char &x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
+	template <> inline void add(const signed long &x, parameter *array, unsigned &index) { add((long long)x, array, index); }
+	template <> inline void add(const int &x, parameter *array, unsigned &index) { add((long long)x, array, index); }
+	template <> inline void add(const short &x, parameter *array, unsigned &index) { add((long long)x, array, index); }
 
 	// interfaces
 
+	const int DEFAULT_AUTO_SIZE = 10;
 	template <typename... Ts> void write(const char *fmt, const Ts&... ts)
 	{
+		parameter *storage;
+		std::unique_ptr<parameter[]> dynamic;
+		parameter automatic[DEFAULT_AUTO_SIZE];
+		if(sizeof...(Ts) > DEFAULT_AUTO_SIZE)
+		{
+			dynamic.reset(new parameter[sizeof...(Ts)]);
+			storage = dynamic.get();
+		}
+		else
+		{
+			storage = automatic;
+		}
+
 		#if defined (__GNUC__)
 		#pragma GCC diagnostic push
 		#pragma GCC diagnostic ignored "-Wunused-variable"
 		#endif
 
-		printer p(fmt, sizeof...(Ts));
-		const char dummy[sizeof...(Ts)] = { (p.output(ts), (char)1)... };
-		p.finish();
-
-		#if defined (__GNUC__)
-		#pragma GCC diagnostic pop
-		#endif
-	}
-
-	template <typename... Ts> void writeln(const char *fmt, const Ts&... ts)
-	{
-		#if defined (__GNUC__)
-		#pragma GCC diagnostic push
-		#pragma GCC diagnostic ignored "-Wunused-variable"
-		#endif
-
-		printer p(fmt, sizeof...(Ts));
-		const char dummy[sizeof...(Ts)] = { (p.output(ts), (char)1)... };
-		p.finish();
+		unsigned index = 0;
+		const char dummy[sizeof...(Ts)] = { (add(ts, storage, index), (char)1)... };
 
 		#if defined (__GNUC__)
 		#pragma GCC diagnostic pop
 		#endif
 
-		puts("");
-	}
-
-	template <typename... Ts> void write_unchecked(const char *fmt, const Ts&... ts)
-	{
-		#if defined (__GNUC__)
-		#pragma GCC diagnostic push
-		#pragma GCC diagnostic ignored "-Wunused-variable"
-		#endif
-
-		printer p(fmt, sizeof...(Ts), false);
-		const char dummy[sizeof...(Ts)] = { (p.output(ts), (char)1)... };
-		p.finish();
-
-		#if defined (__GNUC__)
-		#pragma GCC diagnostic pop
-		#endif
-	}
-
-	template <typename... Ts> void writeln_unchecked(const char *fmt, const Ts&... ts)
-	{
-		#if defined (__GNUC__)
-		#pragma GCC diagnostic push
-		#pragma GCC diagnostic ignored "-Wunused-variable"
-		#endif
-
-		printer p(fmt, sizeof...(Ts), false);
-		const char dummy[sizeof...(Ts)] = { (p.output(ts), (char)1)... };
-		p.finish();
-
-		#if defined (__GNUC__)
-		#pragma GCC diagnostic pop
-		#endif
-
-		puts("");
+		printer(fmt, storage, sizeof...(Ts), true);
 	}
 }
 

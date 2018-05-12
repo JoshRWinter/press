@@ -44,17 +44,19 @@ examples
 #define variadic_size(...) std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value
 
 #define pressfmt(fmt, count) \
-	static_assert(press::printer::is_balanced(fmt, press::specifier_list::string_length(fmt)), "press: specifier brackets are not balanced!"); \
-	static_assert(press::printer::count_specifiers(fmt, press::printer::string_length(fmt)) >= count, "press: too many parameters!"); \
-	static_assert(press::printer::count_specifiers(fmt, press::printer::string_length(fmt)) <= count, "press: not enough parameters!");
+	static_assert(press::is_balanced(fmt, press::string_length(fmt)), "press: specifier brackets are not balanced!"); \
+	static_assert(press::count_specifiers(fmt, press::string_length(fmt)) >= count, "press: too many parameters!"); \
+	static_assert(press::count_specifiers(fmt, press::string_length(fmt)) <= count, "press: not enough parameters!");
 
 #define prwrite(fmt, ...) \
 	pressfmt(fmt, variadic_size(__VA_ARGS__)) \
 	press::write_unchecked(fmt, __VA_ARGS__)
 
+/*
 #define prwriteln(fmt, ...) \
 	pressfmt(fmt, variadic_size(__VA_ARGS__)) \
 	press::writeln_unchecked(fmt, __VA_ARGS__)
+*/
 
 namespace press
 {
@@ -267,7 +269,7 @@ namespace press
 			UNSIGNED_INT,
 			BOOLEAN_,
 			CHARACTER,
-			STRING,
+			BUFFER,
 			POINTER
 		};
 
@@ -309,7 +311,7 @@ namespace press
 
 		void init(const char *s)
 		{
-			type = ptype::STRING;
+			type = ptype::BUFFER;
 			object.cstr = s;
 		}
 
@@ -329,13 +331,14 @@ namespace press
 				case ptype::UNSIGNED_INT:
 					convert_uint(buffer, format);
 					break;
-				case ptype::STRING:
+				case ptype::BUFFER:
 					convert_string(buffer, format);
+					break;
 				case ptype::FLOAT32:
 					convert_float32(buffer, format);
 					break;
 				case ptype::CHARACTER:
-					convert_uint(buffer, format);
+					convert_character(buffer, format);
 					break;
 				case ptype::FLOAT64:
 					convert_float64(buffer, format);
@@ -449,10 +452,9 @@ namespace press
 
 			buffer.write(string, written);
 
-			const char space = ' ';
 			if(format.left_justify)
 				for(unsigned i = max; i > written; --i)
-					buffer.write(&space, 1);
+					buffer.write(&pad, 1);
 		}
 
 		void convert_string(writer &buffer, const settings &format) const
@@ -463,10 +465,13 @@ namespace press
 
 		void convert_bool(writer &buffer, const settings &format) const
 		{
+			buffer.write(object.b ? "true" : "false", object.b ? 4 : 5);
 		}
 
 		void convert_character(writer &buffer, const settings &format) const
 		{
+			char c = object.c;
+			buffer.write(&c, 1);
 		}
 
 		void convert_pointer(writer &buffer, const settings &format) const

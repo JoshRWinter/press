@@ -9,5 +9,7 @@ int main()
 	press::write("\"pi is {.4}\"\n", 3.1415926);
 	press::write("\"my name is {}\"\n", "Bob");
 
+	press::write("boolean: {}, char: {}\n",true, '.');
+
 	return 0;
 }

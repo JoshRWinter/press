@@ -6,6 +6,7 @@
 #include <cmath>
 
 #include <string.h>
+#include <limits.h>
 #include <stdio.h>
 
 // #define PRESS_NO_EXCEPT
@@ -270,54 +271,52 @@ namespace press
 			POINTER
 		};
 
-		parameter() : type(ptype::FLOAT64), object(NULL) {}
-
-		void init(const double &d)
+		void init(const double d)
 		{
 			type = ptype::FLOAT64;
-			object = &d;
+			object.d = d;
 		}
 
-		void init(const float &f)
+		void init(const float f)
 		{
 			type = ptype::FLOAT32;
-			object = &f;
+			object.f = f;
 		}
 
-		void init(const signed long long &i)
+		void init(const signed long long i)
 		{
 			type = ptype::SIGNED_INT;
-			object = &i;
+			object.lli = i;
 		}
 
-		void init(const unsigned long long &i)
+		void init(const unsigned long long i)
 		{
 			type = ptype::UNSIGNED_INT;
-			object = &i;
+			object.ulli = i;
 		}
 
-		void init(const bool &b)
+		void init(const bool b)
 		{
 			type = ptype::BOOLEAN_;
-			object = &b;
+			object.b = b;
 		}
 
-		void init(const char &c)
+		void init(const char c)
 		{
 			type = ptype::CHARACTER;
-			object = &c;
+			object.c = c;
 		}
 
 		void init(const char *s)
 		{
 			type = ptype::STRING;
-			object = s;
+			object.cstr = s;
 		}
 
 		void init(const void *v)
 		{
 			type = ptype::POINTER;
-			object = v;
+			object.vp = v;
 		}
 
 		void convert(writer &buffer, const settings &format) const
@@ -372,39 +371,6 @@ namespace press
 			}
 		}
 
-		template <typename T> static inline unsigned int_length(T i)
-		{
-			if(!std::is_integral<T>::value)
-				abort("must be an integer here");
-
-			int negative = 0;
-			if(std::is_signed<T>::value)
-			{
-				negative = i < 0;
-				i = std::llabs(i);
-			}
-
-			unsigned len = 0;
-			if(i < 10)
-				len = 1;
-			else if(i < 100)
-				len = 2;
-			else if(i < 1000)
-				len = 3;
-			else if(i < 10000)
-				len = 4;
-			else
-			{
-				while(i)
-				{
-					i /= 10;
-					++len;
-				}
-			}
-
-			return len + negative;
-		}
-
 		template <typename T> static unsigned stringify_int(char *buffer, T i)
 		{
 			if(!std::is_integral<T>::value)
@@ -413,15 +379,25 @@ namespace press
 			bool negative = false;
 			if(std::is_signed<T>::value)
 			{
+				if(i == LLONG_MIN)
+				{
+					memcpy(buffer, "-9223372036854775808", 20);
+					return 20;
+				}
 				negative = i < 0;
 				i = std::llabs(i);
 			}
 
 			unsigned place = 0;
-			while(i)
+			if(i == 0)
+				buffer[place++] = '0';
+			else
 			{
-				buffer[place++] = (i % 10) + '0';
-				i /= 10;
+				while(i)
+				{
+					buffer[place++] = (i % 10) + '0';
+					i /= 10;
+				}
 			}
 			if(negative)
 				buffer[place++] = '-';
@@ -441,23 +417,48 @@ namespace press
 
 		void convert_uint(writer &buffer, const settings &format) const
 		{
+			char string[20];
+			const unsigned written = stringify_int(string, object.ulli);
+
+			unsigned max = std::max(written, format.width);
+			const char pad = format.zero_pad ? '0' : ' ';
+
+			if(!format.left_justify)
+				for(unsigned i = max; i > written; --i)
+					buffer.write(&pad, 1);
+
+			buffer.write(string, written);
+
+			const char space = ' ';
+			if(format.left_justify)
+				for(unsigned i = max; i > written; --i)
+					buffer.write(&space, 1);
 		}
 
 		void convert_int(writer &buffer, const settings &format) const
 		{
 			char string[20];
-			const unsigned written = stringify_int(string, *(long long*)object);
+			const unsigned written = stringify_int(string, object.lli);
 
 			unsigned max = std::max(written, format.width);
 			const char pad = format.zero_pad ? '0' : ' ';
-			for(unsigned i = max; i > written; --i)
-				buffer.write(&pad, 1);
+
+			if(!format.left_justify)
+				for(unsigned i = max; i > written; --i)
+					buffer.write(&pad, 1);
 
 			buffer.write(string, written);
+
+			const char space = ' ';
+			if(format.left_justify)
+				for(unsigned i = max; i > written; --i)
+					buffer.write(&space, 1);
 		}
 
 		void convert_string(writer &buffer, const settings &format) const
 		{
+			const auto len = strlen(object.cstr);
+			buffer.write(object.cstr, len);
 		}
 
 		void convert_bool(writer &buffer, const settings &format) const
@@ -473,7 +474,17 @@ namespace press
 		}
 
 		ptype type;
-		const void *object;
+		union
+		{
+			long long lli;
+			unsigned long long ulli;
+			float f;
+			double d;
+			char c;
+			bool b;
+			const char *cstr;
+			const void *vp;
+		}object;
 	};
 
 	constexpr unsigned string_length(const char *fmt, unsigned count = 0, unsigned index = 0)
@@ -609,22 +620,22 @@ namespace press
 	template <typename T> inline void add(const T&, parameter*, unsigned&) { printf("unknown"); }
 
 	// meaningfull specializations
-	inline void add(const unsigned long long &x, parameter *array, unsigned &index) { array[index++].init(x); }
-	inline void add(const long long &x, parameter *array, unsigned &index) { array[index++].init(x); }
-	inline void add(const char &x, parameter *array, unsigned &index) { array[index++].init(x); }
-	inline void add(const double &x, parameter *array, unsigned &index) { array[index++].init(x); }
-	inline void add(const float &x, parameter *array, unsigned &index) { array[index++].init(x); }
-	inline void add(const char* x, parameter *array, unsigned &index) { array[index++].init(x); }
-	inline void add(const bool &x, parameter *array, unsigned &index) { array[index++].init(x); }
+	inline void add(const unsigned long long x, parameter *array, unsigned &index) { array[index++].init(x); }
+	inline void add(const long long x, parameter *array, unsigned &index) { array[index++].init(x); }
+	inline void add(const char x, parameter *array, unsigned &index) { array[index++].init(x); }
+	inline void add(const double x, parameter *array, unsigned &index) { array[index++].init(x); }
+	inline void add(const float x, parameter *array, unsigned &index) { array[index++].init(x); }
+	inline void add(const char *x, parameter *array, unsigned &index) { array[index++].init(x); }
+	inline void add(const bool x, parameter *array, unsigned &index) { array[index++].init(x); }
 
 	// specializations that delegate to other specializations
-	inline void add(const unsigned long &x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
-	inline void add(const unsigned &x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
-	inline void add(const unsigned short &x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
-	inline void add(const unsigned char &x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
-	inline void add(const signed long &x, parameter *array, unsigned &index) { add((long long)x, array, index); }
-	inline void add(const int &x, parameter *array, unsigned &index) { add((long long)x, array, index); }
-	inline void add(const short &x, parameter *array, unsigned &index) { add((long long)x, array, index); }
+	inline void add(const unsigned long x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
+	inline void add(const unsigned x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
+	inline void add(const unsigned short x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
+	inline void add(const unsigned char x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
+	inline void add(const signed long x, parameter *array, unsigned &index) { add((long long)x, array, index); }
+	inline void add(const int x, parameter *array, unsigned &index) { add((long long)x, array, index); }
+	inline void add(const short x, parameter *array, unsigned &index) { add((long long)x, array, index); }
 
 	// interfaces
 

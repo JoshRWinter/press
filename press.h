@@ -3,6 +3,7 @@
 
 #include <type_traits>
 #include <memory>
+#include <cmath>
 
 #include <string.h>
 #include <stdio.h>
@@ -75,6 +76,13 @@ namespace press
 		throw std::runtime_error("press: " + msg);
 #endif // PRESS_NO_EXCEPT
 	}
+
+	enum class print_target
+	{
+		STDOUT,
+		STDERR,
+		BUFFER
+	};
 
 	struct settings
 	{
@@ -171,6 +179,11 @@ namespace press
 
 				++i;
 			}
+
+			if(width > 20)
+				width = 20;
+			if(precision > 10)
+				precision = 10;
 		}
 
 		void reset(){ zero_pad = false; left_justify = false; width = 0; precision = 0; index = -1; }
@@ -184,10 +197,68 @@ namespace press
 		int index; // starts at 1
 	};
 
+	class writer
+	{
+	public:
+		static const int DEFAULT_BUFFER_SIZE = 1024;
+
+		writer(print_target target, char *const user_buffer = NULL, const unsigned user_buffer_size = 0)
+			: m_target(target)
+			, m_buffer(target == print_target::BUFFER ? user_buffer : m_automatic_buffer)
+			, m_bookmark(0)
+			, m_size(target == print_target::BUFFER ? user_buffer_size : DEFAULT_BUFFER_SIZE)
+		{}
+		writer(const writer&) = delete;
+		writer(writer&&) = delete;
+		void operator=(const writer&) = delete;
+		void operator=(writer&&) = delete;
+
+		inline void write(const char *const buf, const unsigned count)
+		{
+			const unsigned written = std::min(m_size - m_bookmark, count);
+
+			memcpy(m_buffer + m_bookmark, buf, written);
+			m_bookmark += written;
+
+			if(written < count && flush())
+				write(buf + written, count - written);
+		}
+
+		bool flush()
+		{
+			switch(m_target)
+			{
+				case print_target::STDOUT:
+					fwrite(m_buffer, 1, m_bookmark, stdout);
+					break;
+				case print_target::STDERR:
+					fwrite(m_buffer, 1, m_bookmark, stderr);
+					break;
+				case print_target::BUFFER:
+					// can't flush
+					return false;
+			}
+
+			printf("|");
+			m_bookmark = 0;
+			return true;
+		}
+
+		inline int size() const { return m_size; }
+		inline char *buffer() const { return m_buffer; }
+
+	private:
+		const print_target m_target;
+		char *const m_buffer;
+		unsigned m_bookmark; // first unwritten byte
+		const unsigned m_size;
+		char m_automatic_buffer[DEFAULT_BUFFER_SIZE];
+	};
+
 	class parameter
 	{
 	public:
-		enum class ptype
+		enum class ptype : unsigned char
 		{
 			FLOAT64,
 			FLOAT32,
@@ -249,75 +320,156 @@ namespace press
 			object = v;
 		}
 
-		const char *convert(char *buffer, unsigned size, const settings &format) const
+		void convert(writer &buffer, const settings &format) const
 		{
 			switch(type)
 			{
 				case ptype::SIGNED_INT:
-					return convert_int(buffer, size, format);
+					convert_int(buffer, format);
+					break;
 				case ptype::UNSIGNED_INT:
-					return convert_uint(buffer, size, format);
+					convert_uint(buffer, format);
+					break;
 				case ptype::STRING:
-					return (const char*)object;
+					convert_string(buffer, format);
 				case ptype::FLOAT32:
-					return convert_float32(buffer, size, format);
+					convert_float32(buffer, format);
+					break;
 				case ptype::CHARACTER:
-					return convert_uint(buffer, size, format);
+					convert_uint(buffer, format);
+					break;
 				case ptype::FLOAT64:
-					return convert_float64(buffer, size, format);
+					convert_float64(buffer, format);
+					break;
 				case ptype::BOOLEAN_:
-					return convert_bool(buffer, size, format);
+					convert_bool(buffer, format);
+					break;
 				case ptype::POINTER:
-					return convert_pointer(buffer, size, format);
+					convert_pointer(buffer, format);
+					break;
 				default:
 					abort("unrecognized enum case: " + std::to_string((int)type));
 					break;
 			}
-
-			return NULL;
 		}
 
 	private:
-		const char *convert_float64(char *buffer, unsigned size, const settings &format) const
+		static void reverse(char *buff, unsigned len)
 		{
-			snprintf(buffer, size, "double with zp=%s, lj=%s, width=%u, precs=%u, index=%i", format.zero_pad ? "true" : "false", format.left_justify ? "true" : "false", format.width, format.precision, format.index);
-			return buffer;
+			unsigned index = 0;
+			unsigned opposite = len - 1;
+			while(index < opposite)
+			{
+				char *a = buff + index;
+				char *b = buff + opposite;
+
+				const char tmp = *a;
+				*a = *b;
+				*b = tmp;
+
+				++index;
+				--opposite;
+			}
 		}
 
-		const char *convert_float32(char *buffer, unsigned size, const settings &format) const
+		template <typename T> static inline unsigned int_length(T i)
 		{
-			snprintf(buffer, size, "float with zp=%s, lj=%s, width=%u, precs=%u, index=%i", format.zero_pad ? "true" : "false", format.left_justify ? "true" : "false", format.width, format.precision, format.index);
-			return buffer;
+			if(!std::is_integral<T>::value)
+				abort("must be an integer here");
+
+			int negative = 0;
+			if(std::is_signed<T>::value)
+			{
+				negative = i < 0;
+				i = std::llabs(i);
+			}
+
+			unsigned len = 0;
+			if(i < 10)
+				len = 1;
+			else if(i < 100)
+				len = 2;
+			else if(i < 1000)
+				len = 3;
+			else if(i < 10000)
+				len = 4;
+			else
+			{
+				while(i)
+				{
+					i /= 10;
+					++len;
+				}
+			}
+
+			return len + negative;
 		}
 
-		const char *convert_int(char *buffer, unsigned size, const settings &format) const
+		template <typename T> static unsigned stringify_int(char *buffer, T i)
 		{
-			snprintf(buffer, size, "int with zp=%s, lj=%s, width=%u, precs=%u, index=%i", format.zero_pad ? "true" : "false", format.left_justify ? "true" : "false", format.width, format.precision, format.index);
-			return buffer;
+			if(!std::is_integral<T>::value)
+				abort("must be an integer here");
+
+			bool negative = false;
+			if(std::is_signed<T>::value)
+			{
+				negative = i < 0;
+				i = std::llabs(i);
+			}
+
+			unsigned place = 0;
+			while(i)
+			{
+				buffer[place++] = (i % 10) + '0';
+				i /= 10;
+			}
+			if(negative)
+				buffer[place++] = '-';
+
+			reverse(buffer, place);
+
+			return place;
 		}
 
-		const char *convert_uint(char *buffer, unsigned size, const settings &format) const
+		void convert_float64(writer &buffer, const settings &format) const
 		{
-			snprintf(buffer, size, "uint with zp=%s, lj=%s, width=%u, precs=%u, index=%i", format.zero_pad ? "true" : "false", format.left_justify ? "true" : "false", format.width, format.precision, format.index);
-			return buffer;
 		}
 
-		const char *convert_bool(char *buffer, unsigned size, const settings &format) const
+		void convert_float32(writer &buffer, const settings &format) const
 		{
-			snprintf(buffer, size, "bool with zp=%s, lj=%s, width=%u, precs=%u, index=%i", format.zero_pad ? "true" : "false", format.left_justify ? "true" : "false", format.width, format.precision, format.index);
-			return buffer;
 		}
 
-		const char *convert_character(char *buffer, unsigned size, const settings &format) const
+		void convert_uint(writer &buffer, const settings &format) const
 		{
-			snprintf(buffer, size, "char with zp=%s, lj=%s, width=%u, precs=%u, index=%i", format.zero_pad ? "true" : "false", format.left_justify ? "true" : "false", format.width, format.precision, format.index);
-			return buffer;
 		}
 
-		const char *convert_pointer(char *buffer, unsigned size, const settings &format) const
+		void convert_int(writer &buffer, const settings &format) const
 		{
-			snprintf(buffer, size, "pointer with zp=%s, lj=%s, width=%u, precs=%u, index=%i", format.zero_pad ? "true" : "false", format.left_justify ? "true" : "false", format.width, format.precision, format.index);
-			return buffer;
+			char string[20];
+			const unsigned written = stringify_int(string, *(long long*)object);
+
+			unsigned max = std::max(written, format.width);
+			const char pad = format.zero_pad ? '0' : ' ';
+			for(unsigned i = max; i > written; --i)
+				buffer.write(&pad, 1);
+
+			buffer.write(string, written);
+		}
+
+		void convert_string(writer &buffer, const settings &format) const
+		{
+		}
+
+		void convert_bool(writer &buffer, const settings &format) const
+		{
+		}
+
+		void convert_character(writer &buffer, const settings &format) const
+		{
+		}
+
+		void convert_pointer(writer &buffer, const settings &format) const
+		{
 		}
 
 		ptype type;
@@ -374,7 +526,7 @@ namespace press
 				: (count_specifiers(fmt, len, count, index + 1)));
 	}
 
-	void print_plain(const char *fmt, unsigned start, unsigned spec_begin)
+	void print_plain(const char *fmt, unsigned start, unsigned spec_begin, writer &buffer)
 	{
 		const char *const substr = fmt + start;
 		const char *const position = strstr(substr, "{{}");
@@ -383,15 +535,15 @@ namespace press
 		const unsigned len = found == false ? spec_begin - start : (index - start);
 
 		if(found == false)
-			printf("%.*s", len, substr);
+			buffer.write(substr, len);
 		else
 		{
-			printf("%.*s", len + 1, substr);
-			print_plain(fmt, index + 3, spec_begin);
+			buffer.write(substr, len + 1);
+			print_plain(fmt, index + 3, spec_begin, buffer);
 		}
 	}
 
-	void printer(const char *const fmt, const parameter *const params, const unsigned param_count, bool checked)
+	void printer(const char *const fmt, const parameter *const params, const unsigned param_count, bool checked, const print_target target)
 	{
 		const unsigned fmt_len = strlen(fmt);
 
@@ -408,8 +560,8 @@ namespace press
 				abort("not enough parameters");
 		}
 
-		// conversion buffer
-		char conversions[501];
+		// buffering
+		writer output(target);
 
 		// begin printing
 		unsigned bookmark = 0;
@@ -440,40 +592,39 @@ namespace press
 			}
 
 			// print the "before text"
-			print_plain(fmt, bookmark, spec_begin);
+			print_plain(fmt, bookmark, spec_begin, output);
 
 			settings format_settings(fmt, spec_begin + 1, spec_len);
-			const char *const buf = params[k].convert(conversions, sizeof(conversions), format_settings);
-			printf("{%s}", buf);
+			params[k].convert(output, format_settings);
 
 			bookmark = spec_end + 1;
 		}
 
 		if(bookmark < fmt_len)
-			print_plain(fmt, bookmark, fmt_len);
+			print_plain(fmt, bookmark, fmt_len, output);
+
+		output.flush();
 	}
 
-	// fallback
-	template <typename T> inline void add(const T&, parameter*, unsigned&) { }
+	template <typename T> inline void add(const T&, parameter*, unsigned&) { printf("unknown"); }
 
-	typedef const char* constchar_p;
 	// meaningfull specializations
-	template <> inline void add(const unsigned long long &x, parameter *array, unsigned &index) { array[index++].init(x); }
-	template <> inline void add(const long long &x, parameter *array, unsigned &index) { array[index++].init(x); }
-	template <> inline void add(const char &x, parameter *array, unsigned &index) { array[index++].init(x); }
-	template <> inline void add(const double &x, parameter *array, unsigned &index) { array[index++].init(x); }
-	template <> inline void add(const float &x, parameter *array, unsigned &index) { array[index++].init(x); }
-	template <> inline void add(const constchar_p &x, parameter *array, unsigned &index) { array[index++].init(x); }
-	template <> inline void add(const bool &x, parameter *array, unsigned &index) { array[index++].init(x); }
+	inline void add(const unsigned long long &x, parameter *array, unsigned &index) { array[index++].init(x); }
+	inline void add(const long long &x, parameter *array, unsigned &index) { array[index++].init(x); }
+	inline void add(const char &x, parameter *array, unsigned &index) { array[index++].init(x); }
+	inline void add(const double &x, parameter *array, unsigned &index) { array[index++].init(x); }
+	inline void add(const float &x, parameter *array, unsigned &index) { array[index++].init(x); }
+	inline void add(const char* x, parameter *array, unsigned &index) { array[index++].init(x); }
+	inline void add(const bool &x, parameter *array, unsigned &index) { array[index++].init(x); }
 
 	// specializations that delegate to other specializations
-	template <> inline void add(const unsigned long &x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
-	template <> inline void add(const unsigned &x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
-	template <> inline void add(const unsigned short &x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
-	template <> inline void add(const unsigned char &x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
-	template <> inline void add(const signed long &x, parameter *array, unsigned &index) { add((long long)x, array, index); }
-	template <> inline void add(const int &x, parameter *array, unsigned &index) { add((long long)x, array, index); }
-	template <> inline void add(const short &x, parameter *array, unsigned &index) { add((long long)x, array, index); }
+	inline void add(const unsigned long &x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
+	inline void add(const unsigned &x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
+	inline void add(const unsigned short &x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
+	inline void add(const unsigned char &x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
+	inline void add(const signed long &x, parameter *array, unsigned &index) { add((long long)x, array, index); }
+	inline void add(const int &x, parameter *array, unsigned &index) { add((long long)x, array, index); }
+	inline void add(const short &x, parameter *array, unsigned &index) { add((long long)x, array, index); }
 
 	// interfaces
 
@@ -498,6 +649,11 @@ namespace press
 		#pragma GCC diagnostic ignored "-Wunused-variable"
 		#endif
 
+		#if defined (__GNUC__)
+		#pragma GCC diagnostic push
+		#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+		#endif
+
 		unsigned index = 0;
 		const char dummy[sizeof...(Ts)] = { (add(ts, storage, index), (char)1)... };
 
@@ -505,7 +661,11 @@ namespace press
 		#pragma GCC diagnostic pop
 		#endif
 
-		printer(fmt, storage, sizeof...(Ts), true);
+		#if defined (__GNUC__)
+		#pragma GCC diagnostic pop
+		#endif
+
+		printer(fmt, storage, sizeof...(Ts), true, print_target::STDOUT);
 	}
 }
 

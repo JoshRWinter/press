@@ -410,6 +410,32 @@ namespace press
 			return place;
 		}
 
+		static unsigned stringify_int_hex(char *buffer, unsigned long long i)
+		{
+			unsigned place = 0;
+
+			if(i == 0)
+				buffer[place++] = '0';
+			else
+			{
+				while(i)
+				{
+					const char h = (i % 16);
+					if(h < 10)
+						buffer[place++] = h + '0';
+					else
+						buffer[place++] = (h - 10) + 'a';
+					i /= 16;
+				}
+			}
+
+			buffer[place++] = 'x';
+			buffer[place++] = '0';
+
+			reverse(buffer, place);
+			return place;
+		}
+
 		void convert_float64(writer &buffer, const settings &format) const
 		{
 		}
@@ -476,6 +502,11 @@ namespace press
 
 		void convert_pointer(writer &buffer, const settings &format) const
 		{
+			unsigned long long number = reinterpret_cast<std::uintptr_t>(object.vp);
+
+			char hex[18];
+			const unsigned written = stringify_int_hex(hex, number);
+			buffer.write(hex, written);
 		}
 
 		ptype type;
@@ -622,7 +653,13 @@ namespace press
 		output.flush();
 	}
 
-	template <typename T> inline void add(const T&, parameter*, unsigned&) { printf("unknown"); }
+	template <typename T> inline void add(const T &x, parameter *array, unsigned &index)
+	{
+		if(std::is_pointer<typename std::remove_reference<T>::type>::value)
+		{
+			array[index++].init((const void*)x);
+		}
+	}
 
 	// meaningfull specializations
 	inline void add(const unsigned long long x, parameter *array, unsigned &index) { array[index++].init(x); }

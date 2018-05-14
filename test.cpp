@@ -8,8 +8,8 @@ int main()
 	press::write("\"the year is {-5}\"\n", 2018ll);
 	press::write("\"pi is {.4}\"\n", 3.1415926);
 	press::write("\"my name is {}\"\n", "Bob");
-
 	press::write("boolean: {}, char: {}\n",true, '.');
+	press::write("void pointer {}\n", (void*)main);
 
 	return 0;
 }

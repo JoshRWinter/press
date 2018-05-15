@@ -158,6 +158,7 @@ namespace press
 							break;
 						}
 
+						precision_specified = true;
 						precision *= 10;
 						precision += c - '0';
 					}
@@ -182,21 +183,17 @@ namespace press
 
 				++i;
 			}
-
-			if(width > 20)
-				width = 20;
-			if(precision > 10)
-				precision = 10;
 		}
 
-		void reset(){ zero_pad = false; left_justify = false; width = 0; precision = 0; index = -1; }
+		void reset(){ zero_pad = false; left_justify = false; width = 0; precision = 0; index = -1; precision_specified = false; }
 
 		// flags
 		bool zero_pad;
 		bool left_justify;
+		bool precision_specified;
 
-		unsigned width;
-		unsigned precision;
+		unsigned char width;
+		unsigned char precision;
 		int index; // starts at 1
 	};
 
@@ -264,7 +261,6 @@ namespace press
 		enum class ptype : unsigned char
 		{
 			FLOAT64,
-			FLOAT32,
 			SIGNED_INT,
 			UNSIGNED_INT,
 			BOOLEAN_,
@@ -276,13 +272,7 @@ namespace press
 		void init(const double d)
 		{
 			type = ptype::FLOAT64;
-			object.d = d;
-		}
-
-		void init(const float f)
-		{
-			type = ptype::FLOAT32;
-			object.f = f;
+			object.f64 = d;
 		}
 
 		void init(const signed long long i)
@@ -333,9 +323,6 @@ namespace press
 					break;
 				case ptype::BUFFER:
 					convert_string(buffer, format);
-					break;
-				case ptype::FLOAT32:
-					convert_float32(buffer, format);
 					break;
 				case ptype::CHARACTER:
 					convert_character(buffer, format);
@@ -438,10 +425,10 @@ namespace press
 
 		void convert_float64(writer &buffer, const settings &format) const
 		{
-		}
-
-		void convert_float32(writer &buffer, const settings &format) const
-		{
+			char buf[325];
+			const int written = snprintf(buf, sizeof(buf), "%.*f", format.precision_specified ? format.precision : 6, object.f64);
+			const int min = std::min(324, written);
+			buffer.write(buf, min);
 		}
 
 		void convert_uint(writer &buffer, const settings &format) const
@@ -449,7 +436,8 @@ namespace press
 			char string[20];
 			const unsigned written = stringify_int(string, object.ulli);
 
-			unsigned max = std::max(written, format.width);
+			unsigned width = format.width;
+			unsigned max = std::max(written, width);
 			const char pad = format.zero_pad ? '0' : ' ';
 
 			if(!format.left_justify)
@@ -469,7 +457,8 @@ namespace press
 			char string[20];
 			const unsigned written = stringify_int(string, object.lli);
 
-			unsigned max = std::max(written, format.width);
+			unsigned width = format.width;
+			unsigned max = std::max(written, width);
 			const char pad = format.zero_pad ? '0' : ' ';
 
 			if(!format.left_justify)
@@ -514,8 +503,7 @@ namespace press
 		{
 			long long lli;
 			unsigned long long ulli;
-			float f;
-			double d;
+			double f64;
 			char c;
 			bool b;
 			const char *cstr;
@@ -666,7 +654,6 @@ namespace press
 	inline void add(const long long x, parameter *array, unsigned &index) { array[index++].init(x); }
 	inline void add(const char x, parameter *array, unsigned &index) { array[index++].init(x); }
 	inline void add(const double x, parameter *array, unsigned &index) { array[index++].init(x); }
-	inline void add(const float x, parameter *array, unsigned &index) { array[index++].init(x); }
 	inline void add(const char *x, parameter *array, unsigned &index) { array[index++].init(x); }
 	inline void add(const bool x, parameter *array, unsigned &index) { array[index++].init(x); }
 	inline void add(const std::string &x, parameter *array, unsigned &index) { array[index++].init(x.c_str()); }
@@ -679,6 +666,7 @@ namespace press
 	inline void add(const signed long x, parameter *array, unsigned &index) { add((long long)x, array, index); }
 	inline void add(const int x, parameter *array, unsigned &index) { add((long long)x, array, index); }
 	inline void add(const short x, parameter *array, unsigned &index) { add((long long)x, array, index); }
+	inline void add(const float x, parameter *array, unsigned &index) { array[index++].init((double)x); }
 
 	// interfaces
 

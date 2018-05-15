@@ -61,16 +61,6 @@ examples
 
 namespace press
 {
-	template <typename T> std::string to_string(const T&)
-	{
-		return "unrecognized type";
-	}
-
-	template <> std::string to_string(const std::string &str)
-	{
-		return str;
-	}
-
 	static void abort(const std::string &msg)
 	{
 #ifdef PRESS_NO_EXCEPT

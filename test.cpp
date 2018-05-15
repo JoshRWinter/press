@@ -11,6 +11,9 @@ int main()
 	press::write("boolean: {}, char: {}\n",true, '.');
 	press::write("void pointer {}\n", (void*)main);
 	press::write("std::string: {}\n", std::string("hello"));
+	char cool[13];
+	press::swrite(cool, sizeof(cool), "cool {}", 12.23589f);
+	press::write("string: {}\n", cool);
 
 	return 0;
 }

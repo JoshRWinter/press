@@ -235,11 +235,11 @@ namespace press
 					fwrite(m_buffer, 1, m_bookmark, stderr);
 					break;
 				case print_target::BUFFER:
+					m_buffer[m_bookmark >= m_size ? m_bookmark - 1 : m_bookmark] = 0;
 					// can't flush
 					return false;
 			}
 
-			printf("|");
 			m_bookmark = 0;
 			return true;
 		}
@@ -578,7 +578,7 @@ namespace press
 		}
 	}
 
-	void printer(const char *const fmt, const parameter *const params, const unsigned param_count, bool checked, const print_target target)
+	void printer(const char *const fmt, const parameter *const params, const unsigned param_count, bool checked, const print_target target, char *userbuffer = NULL, const unsigned userbuffer_size = 0)
 	{
 		const unsigned fmt_len = strlen(fmt);
 
@@ -596,7 +596,7 @@ namespace press
 		}
 
 		// buffering
-		writer output(target);
+		writer output(target, userbuffer, userbuffer_size);
 
 		// begin printing
 		unsigned bookmark = 0;
@@ -708,6 +708,48 @@ namespace press
 		#endif
 
 		printer(fmt, storage, sizeof...(Ts), true, print_target::STDOUT);
+	}
+
+	template <typename... Ts> void swrite(char *buffer, unsigned size, const char *fmt, const Ts&... ts)
+	{
+		if(size == 0)
+			return;
+
+		parameter *storage;
+		std::unique_ptr<parameter[]> dynamic;
+		parameter automatic[DEFAULT_AUTO_SIZE];
+		if(sizeof...(Ts) > DEFAULT_AUTO_SIZE)
+		{
+			dynamic.reset(new parameter[sizeof...(Ts)]);
+			storage = dynamic.get();
+		}
+		else
+		{
+			storage = automatic;
+		}
+
+		#if defined (__GNUC__)
+		#pragma GCC diagnostic push
+		#pragma GCC diagnostic ignored "-Wunused-variable"
+		#endif
+
+		#if defined (__GNUC__)
+		#pragma GCC diagnostic push
+		#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+		#endif
+
+		unsigned index = 0;
+		const char dummy[sizeof...(Ts)] = { (add(ts, storage, index), (char)1)... };
+
+		#if defined (__GNUC__)
+		#pragma GCC diagnostic pop
+		#endif
+
+		#if defined (__GNUC__)
+		#pragma GCC diagnostic pop
+		#endif
+
+		printer(fmt, storage, sizeof...(Ts), true, print_target::BUFFER, buffer, size);
 	}
 }
 

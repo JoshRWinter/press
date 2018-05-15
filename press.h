@@ -669,6 +669,7 @@ namespace press
 	inline void add(const float x, parameter *array, unsigned &index) { array[index++].init(x); }
 	inline void add(const char *x, parameter *array, unsigned &index) { array[index++].init(x); }
 	inline void add(const bool x, parameter *array, unsigned &index) { array[index++].init(x); }
+	inline void add(const std::string &x, parameter *array, unsigned &index) { array[index++].init(x.c_str()); }
 
 	// specializations that delegate to other specializations
 	inline void add(const unsigned long x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }

@@ -10,6 +10,7 @@ int main()
 	press::write("\"my name is {}\"\n", "Bob");
 	press::write("boolean: {}, char: {}\n",true, '.');
 	press::write("void pointer {}\n", (void*)main);
+	press::write("std::string: {}\n", std::string("hello"));
 
 	return 0;
 }

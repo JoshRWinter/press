@@ -3,7 +3,6 @@
 
 #include <type_traits>
 #include <memory>
-#include <cmath>
 
 #include <string.h>
 #include <limits.h>
@@ -82,8 +81,7 @@ namespace press
 
 	enum class print_target
 	{
-		STDOUT,
-		STDERR,
+		FILE_P,
 		BUFFER
 	};
 
@@ -202,8 +200,9 @@ namespace press
 	public:
 		static const int DEFAULT_BUFFER_SIZE = 1024;
 
-		writer(print_target target, char *const user_buffer = NULL, const unsigned user_buffer_size = 0)
+		writer(print_target target, FILE *fp, char *const user_buffer, const unsigned user_buffer_size)
 			: m_target(target)
+			, m_fp(fp)
 			, m_buffer(target == print_target::BUFFER ? user_buffer : m_automatic_buffer)
 			, m_bookmark(0)
 			, m_size(target == print_target::BUFFER ? user_buffer_size : DEFAULT_BUFFER_SIZE)
@@ -228,11 +227,8 @@ namespace press
 		{
 			switch(m_target)
 			{
-				case print_target::STDOUT:
-					fwrite(m_buffer, 1, m_bookmark, stdout);
-					break;
-				case print_target::STDERR:
-					fwrite(m_buffer, 1, m_bookmark, stderr);
+				case print_target::FILE_P:
+					fwrite(m_buffer, 1, m_bookmark, m_fp);
 					break;
 				case print_target::BUFFER:
 					m_buffer[m_bookmark >= m_size ? m_bookmark - 1 : m_bookmark] = 0;
@@ -249,6 +245,7 @@ namespace press
 
 	private:
 		const print_target m_target;
+		FILE *const m_fp;
 		char *const m_buffer;
 		unsigned m_bookmark; // first unwritten byte
 		const unsigned m_size;
@@ -578,7 +575,7 @@ namespace press
 		}
 	}
 
-	void printer(const char *const fmt, const parameter *const params, const unsigned param_count, bool checked, const print_target target, char *userbuffer = NULL, const unsigned userbuffer_size = 0)
+	void printer(const char *const fmt, const parameter *const params, const unsigned param_count, bool checked, const print_target target, FILE *fp, char *userbuffer, const unsigned userbuffer_size)
 	{
 		const unsigned fmt_len = strlen(fmt);
 
@@ -596,7 +593,7 @@ namespace press
 		}
 
 		// buffering
-		writer output(target, userbuffer, userbuffer_size);
+		writer output(target, fp, userbuffer, userbuffer_size);
 
 		// begin printing
 		unsigned bookmark = 0;
@@ -671,7 +668,7 @@ namespace press
 	// interfaces
 
 	const int DEFAULT_AUTO_SIZE = 10;
-	template <typename... Ts> void write(const char *fmt, const Ts&... ts)
+	template <typename... Ts> inline void write_(bool checked, print_target target, FILE *fp, char *userbuffer, unsigned userbuffer_size, const char *fmt, const Ts&... ts)
 	{
 		parameter *storage;
 		std::unique_ptr<parameter[]> dynamic;
@@ -707,49 +704,22 @@ namespace press
 		#pragma GCC diagnostic pop
 		#endif
 
-		printer(fmt, storage, sizeof...(Ts), true, print_target::STDOUT);
+		printer(fmt, storage, sizeof...(Ts), true, target, fp, userbuffer, userbuffer_size);
 	}
 
-	template <typename... Ts> void swrite(char *buffer, unsigned size, const char *fmt, const Ts&... ts)
+	template <typename... Ts> void write(const char *fmt, const Ts&... ts)
 	{
-		if(size == 0)
-			return;
+		write_(true, print_target::FILE_P, stdout, NULL, 0, fmt, ts...);
+	}
 
-		parameter *storage;
-		std::unique_ptr<parameter[]> dynamic;
-		parameter automatic[DEFAULT_AUTO_SIZE];
-		if(sizeof...(Ts) > DEFAULT_AUTO_SIZE)
-		{
-			dynamic.reset(new parameter[sizeof...(Ts)]);
-			storage = dynamic.get();
-		}
-		else
-		{
-			storage = automatic;
-		}
+	template <typename... Ts> void fwrite(FILE *fp, const char *fmt, const Ts&... ts)
+	{
+		write_(true, print_target::FILE_P, fp, NULL, 0, fmt, ts...);
+	}
 
-		#if defined (__GNUC__)
-		#pragma GCC diagnostic push
-		#pragma GCC diagnostic ignored "-Wunused-variable"
-		#endif
-
-		#if defined (__GNUC__)
-		#pragma GCC diagnostic push
-		#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
-		#endif
-
-		unsigned index = 0;
-		const char dummy[sizeof...(Ts)] = { (add(ts, storage, index), (char)1)... };
-
-		#if defined (__GNUC__)
-		#pragma GCC diagnostic pop
-		#endif
-
-		#if defined (__GNUC__)
-		#pragma GCC diagnostic pop
-		#endif
-
-		printer(fmt, storage, sizeof...(Ts), true, print_target::BUFFER, buffer, size);
+	template <typename... Ts> void bwrite(char *userbuffer, unsigned userbuffer_size, const char *fmt, const Ts&... ts)
+	{
+		write_(true, print_target::BUFFER, NULL, userbuffer, userbuffer_size, fmt, ts...);
 	}
 }
 

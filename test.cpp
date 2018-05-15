@@ -12,8 +12,11 @@ int main()
 	press::write("void pointer {}\n", (void*)main);
 	press::write("std::string: {}\n", std::string("hello"));
 	char cool[13];
-	press::swrite(cool, sizeof(cool), "cool {}", 12.23589f);
+	press::bwrite(cool, sizeof(cool), "cool {}", 12.23589f);
 	press::write("string: {}\n", cool);
 
+	FILE *file = fopen("/tmp/test.txt", "w");
+	press::fwrite(file, "this is a cool {}", "function");
+	fclose(file);
 	return 0;
 }

@@ -49,13 +49,15 @@ examples
 
 #define prwrite(fmt, ...) \
 	pressfmt(fmt, variadic_size(__VA_ARGS__)) \
-	press::write_unchecked(fmt, __VA_ARGS__)
+	press::write_(false, press::print_target::FILE_P, stdout, NULL, 0u, fmt, ##__VA_ARGS__)
 
-/*
-#define prwriteln(fmt, ...) \
+#define prfwrite(fp, fmt, ...) \
 	pressfmt(fmt, variadic_size(__VA_ARGS__)) \
-	press::writeln_unchecked(fmt, __VA_ARGS__)
-*/
+	press::write_(false, press::print_target::FILE_P, fp, NULL, 0u, fmt, ##__VA_ARGS__)
+
+#define prbwrite(userbuffer, size, fmt, ...) \
+	pressfmt(fmt, variadic_size(__VA_ARGS__)) \
+	press::write_(false, press::print_target::BUFFER, NULL, userbuffer, size, fmt, ##__VA_ARGS__)
 
 namespace press
 {

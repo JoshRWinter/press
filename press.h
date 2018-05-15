@@ -244,8 +244,12 @@ namespace press
 		char m_automatic_buffer[DEFAULT_BUFFER_SIZE];
 	};
 
+	class hex;
+	class HEX;
 	class parameter
 	{
+		friend hex;
+		friend HEX;
 	public:
 		enum class ptype : unsigned char
 		{
@@ -386,9 +390,10 @@ namespace press
 			return place;
 		}
 
-		static unsigned stringify_int_hex(char *buffer, unsigned long long i)
+		static unsigned stringify_int_hex(char *buffer, unsigned long long i, bool uppercase)
 		{
 			unsigned place = 0;
+			const char base_character = uppercase ? 'A' : 'a';
 
 			if(i == 0)
 				buffer[place++] = '0';
@@ -400,13 +405,10 @@ namespace press
 					if(h < 10)
 						buffer[place++] = h + '0';
 					else
-						buffer[place++] = (h - 10) + 'a';
+						buffer[place++] = (h - 10) + base_character;
 					i /= 16;
 				}
 			}
-
-			buffer[place++] = 'x';
-			buffer[place++] = '0';
 
 			reverse(buffer, place);
 			return place;
@@ -483,7 +485,7 @@ namespace press
 			unsigned long long number = reinterpret_cast<std::uintptr_t>(object.vp);
 
 			char hex[18];
-			const unsigned written = stringify_int_hex(hex, number);
+			const unsigned written = stringify_int_hex(hex, number, false);
 			buffer.write(hex, written);
 		}
 
@@ -498,6 +500,28 @@ namespace press
 			const char *cstr;
 			const void *vp;
 		}object;
+	};
+
+	struct hex
+	{
+		hex(unsigned long long i)
+		{
+			const unsigned written = parameter::stringify_int_hex(m_buffer, i, false);
+			m_buffer[written] = 0;
+		}
+
+		char m_buffer[17];
+	};
+
+	struct HEX
+	{
+		HEX(unsigned long long i)
+		{
+			const unsigned written = parameter::stringify_int_hex(m_buffer, i, true);
+			m_buffer[written] = 0;
+		}
+
+		char m_buffer[17];
 	};
 
 	constexpr unsigned string_length(const char *fmt, unsigned count = 0, unsigned index = 0)
@@ -646,6 +670,8 @@ namespace press
 	inline void add(const char *x, parameter *array, unsigned &index) { array[index++].init(x); }
 	inline void add(const bool x, parameter *array, unsigned &index) { array[index++].init(x); }
 	inline void add(const std::string &x, parameter *array, unsigned &index) { array[index++].init(x.c_str()); }
+	inline void add(const hex &x, parameter *array, unsigned &index) { array[index++].init(x.m_buffer); }
+	inline void add(const HEX &x, parameter *array, unsigned &index) { array[index++].init(x.m_buffer); }
 
 	// specializations that delegate to other specializations
 	inline void add(const unsigned long x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }

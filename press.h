@@ -4,6 +4,7 @@
 #include <type_traits>
 #include <memory>
 #include <algorithm>
+#include <string>
 
 #include <string.h>
 #include <ctype.h>
@@ -233,23 +234,38 @@ namespace press
 	class hex;
 	class HEX;
 	class oct;
+	class ptr;
 	class parameter
 	{
 		friend hex;
 		friend HEX;
 		friend oct;
+		friend ptr;
 
 	public:
 		enum class ptype : unsigned char
 		{
+			NONE,
 			FLOAT64,
 			SIGNED_INT,
 			UNSIGNED_INT,
 			BOOLEAN_,
 			CHARACTER,
 			BUFFER,
-			POINTER
+			CUSTOM
 		};
+
+		parameter() : type (ptype::NONE) {}
+
+		~parameter()
+		{
+			if(type == ptype::CUSTOM)
+			{
+				typedef std::string sstring;
+				sstring *s = (sstring*)object.rawbuf;
+				s->~sstring();
+			}
+		}
 
 		void init(const double d)
 		{
@@ -287,10 +303,10 @@ namespace press
 			object.cstr = s;
 		}
 
-		void init(const void *v)
+		void init(std::string &&str)
 		{
-			type = ptype::POINTER;
-			object.vp = v;
+			type = ptype::CUSTOM;
+			new (object.rawbuf) std::string(std::move(str));
 		}
 
 		void convert(writer &buffer, const settings &format) const
@@ -315,8 +331,8 @@ namespace press
 				case ptype::BOOLEAN_:
 					convert_bool(buffer, format);
 					break;
-				case ptype::POINTER:
-					convert_pointer(buffer, format);
+				case ptype::CUSTOM:
+					convert_custom(buffer, format);
 					break;
 				default:
 					break;
@@ -486,13 +502,10 @@ namespace press
 			buffer.write(&c, 1);
 		}
 
-		void convert_pointer(writer &buffer, const settings &format) const
+		void convert_custom(writer &buffer, const settings &format) const
 		{
-			unsigned long long number = reinterpret_cast<std::uintptr_t>(object.vp);
-
-			char hex[18];
-			const unsigned written = stringify_int_hex(hex, number, false);
-			buffer.write(hex, written);
+			const std::string *s = (const std::string*)object.rawbuf;
+			buffer.write(s->c_str(), s->length());
 		}
 
 		ptype type;
@@ -504,7 +517,7 @@ namespace press
 			char c;
 			bool b;
 			const char *cstr;
-			const void *vp;
+			char rawbuf[sizeof(std::string)];
 		}object;
 	};
 
@@ -534,12 +547,23 @@ namespace press
 	{
 		oct(unsigned long long i)
 		{
-
 			const unsigned written = parameter::stringify_int_oct(m_buffer, i);
 			m_buffer[written] = 0;
 		}
 
 		char m_buffer[23];
+	};
+
+	struct ptr
+	{
+		ptr(const void *p)
+		{
+			unsigned long long number = reinterpret_cast<uintptr_t>(p);
+			const unsigned written = parameter::stringify_int_hex(m_buffer, number, false);
+			m_buffer[written] = 0;
+		}
+
+		char m_buffer[17];
 	};
 
 	constexpr bool is_literal_brace(const char *fmt, unsigned len, unsigned index)
@@ -667,10 +691,7 @@ namespace press
 
 	template <typename T> inline void add(const T &x, parameter *array, unsigned &index)
 	{
-		if(std::is_pointer<typename std::remove_reference<T>::type>::value)
-		{
-			array[index++].init((const void*)x);
-		}
+		array[index++].init(std::move(press::to_string(x)));;
 	}
 
 	// meaningfull specializations
@@ -684,6 +705,7 @@ namespace press
 	inline void add(const hex &x, parameter *array, unsigned &index) { array[index++].init(x.m_buffer); }
 	inline void add(const HEX &x, parameter *array, unsigned &index) { array[index++].init(x.m_buffer); }
 	inline void add(const oct &x, parameter *array, unsigned &index) { array[index++].init(x.m_buffer); }
+	inline void add(const ptr &x, parameter *array, unsigned &index) { array[index++].init(x.m_buffer); }
 
 	// specializations that delegate to other specializations
 	inline void add(const unsigned long x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }

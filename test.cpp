@@ -1,4 +1,21 @@
+#include <string>
+
+struct my_custom_class
+{
+	my_custom_class() : t(time(NULL)) {}
+	const time_t t;
+};
+namespace press
+{
+	std::string to_string(const my_custom_class &mcc)
+	{
+		return "the time is " + std::to_string(mcc.t);
+	}
+}
+
 #include "press.h"
+
+#include <time.h>
 
 int main()
 {
@@ -13,7 +30,7 @@ int main()
 	prwrite("\"my name is {}\"\n", "Bob");
 
 	prwrite("boolean: {}, char: {}\n",true, '.');
-	prwrite("void pointer {}\n", (void*)main);
+	prwrite("void pointer 0x{}\n", press::ptr((void*)main));
 	prwrite("std::string: {}\n", std::string("hello"));
 	char cool[13];
 	prbwrite(cool, sizeof(cool), "cool {}", 12.23589f);
@@ -27,6 +44,10 @@ int main()
 		prfwrite(file, "this is a cool {}", "function");
 		fclose(file);
 	}
+
+	// user defined type
+	my_custom_class mcc;
+	prwrite("\"custom type: {@1}\"\n", mcc);
 
 	return 0;
 }

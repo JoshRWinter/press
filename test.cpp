@@ -18,6 +18,8 @@ int main()
 	prbwrite(cool, sizeof(cool), "cool {}", 12.23589f);
 	prwrite("string: {}\n", cool);
 
+	prwrite("\"{@2}, {05@1}, {-4@2}\"\n", 31, 55);
+
 	FILE *file = fopen("/tmp/test.txt", "w");
 	if(file)
 	{

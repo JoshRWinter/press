@@ -3,8 +3,10 @@
 
 #include <type_traits>
 #include <memory>
+#include <algorithm>
 
 #include <string.h>
+#include <ctype.h>
 #include <limits.h>
 #include <stdio.h>
 
@@ -37,21 +39,20 @@ examples
 #include <tuple>
 #define variadic_size(...) std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value
 
-#define pressfmt(fmt, count) \
+#define pressfmtcheck(fmt, count) \
 	static_assert(press::is_balanced(fmt, strlen(fmt)), "press: specifier brackets are not balanced!"); \
-	static_assert(press::count_specifiers(fmt, strlen(fmt)) >= count, "press: too many parameters!"); \
-	static_assert(press::count_specifiers(fmt, strlen(fmt)) <= count, "press: not enough parameters!");
+	static_assert(press::count_specifiers(fmt, strlen(fmt)) >= count, "press: too many parameters!");
 
 #define prwrite(fmt, ...) \
-	pressfmt(fmt, variadic_size(__VA_ARGS__)) \
+	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)) \
 	press::write_(press::print_target::FILE_P, stdout, NULL, 0u, fmt, ##__VA_ARGS__)
 
 #define prfwrite(fp, fmt, ...) \
-	pressfmt(fmt, variadic_size(__VA_ARGS__)) \
+	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)) \
 	press::write_(press::print_target::FILE_P, fp, NULL, 0u, fmt, ##__VA_ARGS__)
 
 #define prbwrite(userbuffer, size, fmt, ...) \
-	pressfmt(fmt, variadic_size(__VA_ARGS__)) \
+	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)) \
 	press::write_(press::print_target::BUFFER, NULL, userbuffer, size, fmt, ##__VA_ARGS__)
 
 namespace press
@@ -583,8 +584,7 @@ namespace press
 
 		// begin printing
 		unsigned bookmark = 0;
-		const unsigned loop_for = std::min(pack_size, spec_count);
-		for(unsigned k = 0; k < loop_for; ++k)
+		for(unsigned k = 0; k < spec_count; ++k)
 		{
 			// find the first open specifier bracket and extract the spec
 			unsigned spec_len = 0;
@@ -614,7 +614,14 @@ namespace press
 			print_plain(fmt, bookmark, spec_begin, output);
 
 			settings format_settings(fmt, spec_begin + 1, spec_len);
-			params[k].convert(output, format_settings);
+			const bool spec_index_overridden = format_settings.index >= 0;
+			const int index = spec_index_overridden ? format_settings.index - 1 : k;
+			if(spec_index_overridden && (index < 0 || index >= (int)pack_size))
+				output.write("{UNDEFINED}", 11);
+			else if(!spec_index_overridden && index >= (int)pack_size)
+				output.write("{UNDEFINED}", 11);
+			else
+				params[index].convert(output, format_settings);
 
 			bookmark = spec_end + 1;
 		}

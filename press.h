@@ -8,11 +8,6 @@
 #include <limits.h>
 #include <stdio.h>
 
-// #define PRESS_NO_EXCEPT
-#ifndef PRESS_NO_EXCEPT
-#include <stdexcept>
-#endif // PRESS_NO_EXCEPT
-
 /* PRESS printing tool
 
 Press is a I/O tool for human-readable output using printf style syntax, but with extra type
@@ -43,34 +38,24 @@ examples
 #define variadic_size(...) std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value
 
 #define pressfmt(fmt, count) \
-	static_assert(press::is_balanced(fmt, press::string_length(fmt)), "press: specifier brackets are not balanced!"); \
-	static_assert(press::count_specifiers(fmt, press::string_length(fmt)) >= count, "press: too many parameters!"); \
-	static_assert(press::count_specifiers(fmt, press::string_length(fmt)) <= count, "press: not enough parameters!");
+	static_assert(press::is_balanced(fmt, strlen(fmt)), "press: specifier brackets are not balanced!"); \
+	static_assert(press::count_specifiers(fmt, strlen(fmt)) >= count, "press: too many parameters!"); \
+	static_assert(press::count_specifiers(fmt, strlen(fmt)) <= count, "press: not enough parameters!");
 
 #define prwrite(fmt, ...) \
 	pressfmt(fmt, variadic_size(__VA_ARGS__)) \
-	press::write_(false, press::print_target::FILE_P, stdout, NULL, 0u, fmt, ##__VA_ARGS__)
+	press::write_(press::print_target::FILE_P, stdout, NULL, 0u, fmt, ##__VA_ARGS__)
 
 #define prfwrite(fp, fmt, ...) \
 	pressfmt(fmt, variadic_size(__VA_ARGS__)) \
-	press::write_(false, press::print_target::FILE_P, fp, NULL, 0u, fmt, ##__VA_ARGS__)
+	press::write_(press::print_target::FILE_P, fp, NULL, 0u, fmt, ##__VA_ARGS__)
 
 #define prbwrite(userbuffer, size, fmt, ...) \
 	pressfmt(fmt, variadic_size(__VA_ARGS__)) \
-	press::write_(false, press::print_target::BUFFER, NULL, userbuffer, size, fmt, ##__VA_ARGS__)
+	press::write_(press::print_target::BUFFER, NULL, userbuffer, size, fmt, ##__VA_ARGS__)
 
 namespace press
 {
-	static void abort(const std::string &msg)
-	{
-#ifdef PRESS_NO_EXCEPT
-		fprintf(stderr, "press: %s\n", msg.c_str());
-		std::abort();
-#else
-		throw std::runtime_error("press: " + msg);
-#endif // PRESS_NO_EXCEPT
-	}
-
 	enum class print_target
 	{
 		FILE_P,
@@ -330,7 +315,6 @@ namespace press
 					convert_pointer(buffer, format);
 					break;
 				default:
-					abort("unrecognized enum case: " + std::to_string((int)type));
 					break;
 			}
 		}
@@ -357,7 +341,7 @@ namespace press
 		template <typename T> static unsigned stringify_int(char *buffer, T i)
 		{
 			if(!std::is_integral<T>::value)
-				abort("must be an integer here");
+				return 0;
 
 			bool negative = false;
 			if(std::is_signed<T>::value)
@@ -524,14 +508,6 @@ namespace press
 		char m_buffer[17];
 	};
 
-	constexpr unsigned string_length(const char *fmt, unsigned count = 0, unsigned index = 0)
-	{
-		return
-		(fmt[index] == 0) ?
-			(count)
-			: (string_length(fmt, count + 1, index + 1));
-	}
-
 	constexpr bool is_literal_brace(const char *fmt, unsigned len, unsigned index)
 	{
 		return
@@ -540,38 +516,44 @@ namespace press
 			: (fmt[index] == '{' && fmt[index + 1] == '{' && fmt[index + 2] == '}');
 	}
 
-	constexpr bool is_balanced(const char *fmt, unsigned len, unsigned index = 0, bool open = false)
+	constexpr bool is_balanced(const char *fmt, unsigned len, unsigned index = 0, int open = 0)
 	{
 		return
-		(index == len) ?
-			(!open)
-			: ((fmt[index] == '{') ?
-				((is_literal_brace(fmt, len, index)) ?
-					(is_balanced(fmt, len, index + 3, open))
-					: (is_balanced(fmt, len, index + 1, true)))
-				: ((fmt[index] == '}' && open) ?
-					(is_balanced(fmt, len, index + 1, false))
-					: (is_balanced(fmt, len, index + 1, open))));
+			(index >= len) ?
+				(open == 0)
+				: ((fmt[index] == '{') ?
+					(is_literal_brace(fmt, len, index) ?
+						(is_balanced(fmt, len, index + 3, open))
+						: (is_balanced(fmt, len, index + 1, open + 1)))
+					: ((fmt[index] == '}') ?
+						((open > 0) ?
+							(is_balanced(fmt, len, index + 1, open - 1))
+							: (is_balanced(fmt, len, index + 1, open)))
+						: (is_balanced(fmt, len, index + 1, open))));
 	}
 
-	constexpr unsigned find_partner(const char *fmt, unsigned len, unsigned index)
+	constexpr int find_partner(const char *fmt, unsigned len, unsigned index)
 	{
 		return
-		(fmt[index] == '}') ?
-			(index)
-			: (find_partner(fmt, len, index + 1));
+		(index >= len) ?
+			(-1)
+			: ((fmt[index] == '}') ?
+				(index)
+				: (find_partner(fmt, len, index + 1)));
 	}
 
 	constexpr unsigned count_specifiers(const char *fmt, unsigned len, unsigned count = 0, unsigned index = 0)
 	{
 		return
-		(index == len) ?
+		(index >= len) ?
 			(count)
-			: ((fmt[index] == '{') ?
-				((is_literal_brace(fmt, len, index)) ?
+			: ((fmt[index] != '{') ?
+				(count_specifiers(fmt, len, count, index + 1))
+				: ((is_literal_brace(fmt, len, index)) ?
 					(count_specifiers(fmt, len, count, index + 3))
-					: (count_specifiers(fmt, len, count + 1, find_partner(fmt, len, index) + 1)))
-				: (count_specifiers(fmt, len, count, index + 1)));
+					: ((find_partner(fmt, len, index + 1) == -1) ?
+						(count)
+						: (count_specifiers(fmt, len, count + 1, find_partner(fmt, len, index + 1) + 1)))));
 	}
 
 	void print_plain(const char *fmt, unsigned start, unsigned spec_begin, writer &buffer)
@@ -591,34 +573,23 @@ namespace press
 		}
 	}
 
-	void printer(const char *const fmt, const parameter *const params, const unsigned param_count, bool checked, const print_target target, FILE *fp, char *userbuffer, const unsigned userbuffer_size)
+	void printer(const char *const fmt, const parameter *const params, const unsigned pack_size, const print_target target, FILE *fp, char *userbuffer, const unsigned userbuffer_size)
 	{
 		const unsigned fmt_len = strlen(fmt);
-
-		// consistency checks
-		if(checked)
-		{
-			if(!is_balanced(fmt, fmt_len))
-				abort("specifier brackets are not balanced");
-
-			const unsigned spec_count = count_specifiers(fmt, fmt_len);
-			if(spec_count < param_count)
-				abort("too many parameters!");
-			else if(spec_count > param_count)
-				abort("not enough parameters");
-		}
+		const unsigned spec_count = count_specifiers(fmt, fmt_len);
 
 		// buffering
 		writer output(target, fp, userbuffer, userbuffer_size);
 
 		// begin printing
 		unsigned bookmark = 0;
-		for(unsigned k = 0; k < param_count; ++k)
+		const unsigned loop_for = std::min(pack_size, spec_count);
+		for(unsigned k = 0; k < loop_for; ++k)
 		{
 			// find the first open specifier bracket and extract the spec
 			unsigned spec_len = 0;
 			unsigned spec_begin = bookmark;
-			unsigned spec_end = spec_begin;
+			int spec_end = spec_begin;
 			for(; spec_begin < fmt_len; ++spec_begin)
 			{
 				const char c = fmt[spec_begin];
@@ -686,7 +657,7 @@ namespace press
 	// interfaces
 
 	const int DEFAULT_AUTO_SIZE = 10;
-	template <typename... Ts> inline void write_(bool checked, print_target target, FILE *fp, char *userbuffer, unsigned userbuffer_size, const char *fmt, const Ts&... ts)
+	template <typename... Ts> inline void write_(print_target target, FILE *fp, char *userbuffer, unsigned userbuffer_size, const char *fmt, const Ts&... ts)
 	{
 		parameter *storage;
 		std::unique_ptr<parameter[]> dynamic;
@@ -722,22 +693,22 @@ namespace press
 		#pragma GCC diagnostic pop
 		#endif
 
-		printer(fmt, storage, sizeof...(Ts), true, target, fp, userbuffer, userbuffer_size);
+		printer(fmt, storage, sizeof...(Ts), target, fp, userbuffer, userbuffer_size);
 	}
 
 	template <typename... Ts> void write(const char *fmt, const Ts&... ts)
 	{
-		write_(true, print_target::FILE_P, stdout, NULL, 0, fmt, ts...);
+		write_(print_target::FILE_P, stdout, NULL, 0, fmt, ts...);
 	}
 
 	template <typename... Ts> void fwrite(FILE *fp, const char *fmt, const Ts&... ts)
 	{
-		write_(true, print_target::FILE_P, fp, NULL, 0, fmt, ts...);
+		write_(print_target::FILE_P, fp, NULL, 0, fmt, ts...);
 	}
 
 	template <typename... Ts> void bwrite(char *userbuffer, unsigned userbuffer_size, const char *fmt, const Ts&... ts)
 	{
-		write_(true, print_target::BUFFER, NULL, userbuffer, userbuffer_size, fmt, ts...);
+		write_(print_target::BUFFER, NULL, userbuffer, userbuffer_size, fmt, ts...);
 	}
 }
 

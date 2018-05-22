@@ -232,10 +232,13 @@ namespace press
 
 	class hex;
 	class HEX;
+	class oct;
 	class parameter
 	{
 		friend hex;
 		friend HEX;
+		friend oct;
+
 	public:
 		enum class ptype : unsigned char
 		{
@@ -399,6 +402,24 @@ namespace press
 			return place;
 		}
 
+		static unsigned stringify_int_oct(char *buffer, unsigned long long i)
+		{
+			unsigned place = 0;
+			if(i == 0)
+				buffer[place++] = '0';
+			else
+			{
+				while(i)
+				{
+					buffer[place++] = (i % 8) + 48;
+					i /= 8;
+				}
+			}
+
+			reverse(buffer, place);
+			return place;
+		}
+
 		void convert_float64(writer &buffer, const settings &format) const
 		{
 			char buf[325];
@@ -507,6 +528,18 @@ namespace press
 		}
 
 		char m_buffer[17];
+	};
+
+	struct oct
+	{
+		oct(unsigned long long i)
+		{
+
+			const unsigned written = parameter::stringify_int_oct(m_buffer, i);
+			m_buffer[written] = 0;
+		}
+
+		char m_buffer[23];
 	};
 
 	constexpr bool is_literal_brace(const char *fmt, unsigned len, unsigned index)
@@ -650,6 +683,7 @@ namespace press
 	inline void add(const std::string &x, parameter *array, unsigned &index) { array[index++].init(x.c_str()); }
 	inline void add(const hex &x, parameter *array, unsigned &index) { array[index++].init(x.m_buffer); }
 	inline void add(const HEX &x, parameter *array, unsigned &index) { array[index++].init(x.m_buffer); }
+	inline void add(const oct &x, parameter *array, unsigned &index) { array[index++].init(x.m_buffer); }
 
 	// specializations that delegate to other specializations
 	inline void add(const unsigned long x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }

@@ -9,6 +9,7 @@ int main()
 	prwrite("\"pi is {.4}\"\n", 3.1415926);
 	prwrite("\"hex number: {}\"\n", press::hex(859654));
 	prwrite("\"uppercase hex number: 0x{}\"\n", press::HEX(859654));
+	prwrite("\"octal number {}\"\n", press::oct(1455587));
 	prwrite("\"my name is {}\"\n", "Bob");
 
 	prwrite("boolean: {}, char: {}\n",true, '.');

@@ -1,4 +1,6 @@
 #include <string>
+#include <stdlib.h>
+#include <time.h>
 
 struct my_custom_class
 {
@@ -14,8 +16,7 @@ namespace press
 }
 
 #include "press.h"
-
-#include <time.h>
+#include "benchmark.h"
 
 int main()
 {

@@ -689,6 +689,11 @@ namespace press
 		output.flush();
 	}
 
+	template <typename T> std::string to_string(const T&)
+	{
+		return "{UNKNOWN DATA TYPE}";
+	}
+
 	template <typename T> inline void add(const T &x, parameter *array, unsigned &index)
 	{
 		array[index++].init(std::move(press::to_string(x)));;

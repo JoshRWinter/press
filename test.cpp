@@ -16,7 +16,6 @@ namespace press
 }
 
 #include "press.h"
-#include "benchmark.h"
 
 int main()
 {

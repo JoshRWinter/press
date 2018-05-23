@@ -24,4 +24,15 @@ std::unordered_map<const char*, unsigned long long> times;
 #define BENCH_SHOW(x) \
 	printf("benchmark \"" #x "\" took %llu microseconds\n", times[#x]);
 
+struct data
+{
+	const char *name;
+	int age;
+	unsigned children;
+	unsigned long long houses;
+	long long sandwiches;
+};
+
+data get_data();
+
 #endif // BENCHMARK_H

@@ -9,20 +9,20 @@ std::unordered_map<const char*, std::chrono::time_point<std::chrono::high_resolu
 std::unordered_map<const char*, unsigned long long> times;
 
 #define BENCH_START(x) \
-	if(times.find(#x) == times.end()) \
+	if(times.find(x) == times.end()) \
 	{ \
-		times[#x] = 0ull; \
+		times[x] = 0; \
 	} \
-	starts.insert({#x, std::chrono::high_resolution_clock::now()});
+	starts[x] = std::chrono::high_resolution_clock::now();
 
 #define BENCH_STOP(x) \
 	{ \
-		const std::chrono::time_point<std::chrono::high_resolution_clock> x##end_time = std::chrono::high_resolution_clock::now(); \
-		times[#x] += (unsigned long long)std::chrono::duration<float, std::micro>(x##end_time - starts[#x]).count(); \
+		const std::chrono::time_point<std::chrono::high_resolution_clock> benchmark_end_time_ = std::chrono::high_resolution_clock::now(); \
+		times[x] += (unsigned long long)std::chrono::duration<double, std::nano>(benchmark_end_time_ - starts[x]).count(); \
 	}
 
 #define BENCH_SHOW(x) \
-	printf("benchmark \"" #x "\" took %llu microseconds\n", times[#x]);
+	printf("benchmark \"" x "\" took %llu microseconds\n", times[x] / 1000);
 
 struct data
 {
@@ -34,5 +34,7 @@ struct data
 };
 
 data get_data();
+void process(const char*);
+void process(const std::ostringstream&);
 
 #endif // BENCHMARK_H

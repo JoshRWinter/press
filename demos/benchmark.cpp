@@ -16,7 +16,7 @@ int main()
 
 		BENCH_START("Press");
 		char buffer[2048];
-		prbwrite(buffer, sizeof(buffer), "Hello, my name is {}, I am {} years old, I have {} children, {} houses, and {} sandwiches.\n", d.name, d.age, d.children, d.houses, d.sandwiches);
+		prbwrite(buffer, sizeof(buffer), "Hello, my name is {}, I am {} years old, I have {} children, {} houses, and {} sandwiches.", d.name, d.age, d.children, d.houses, d.sandwiches);
 		BENCH_STOP("Press");
 
 		process(buffer);
@@ -28,7 +28,7 @@ int main()
 
 		BENCH_START("Printf");
 		char buffer[2048];
-		snprintf(buffer, sizeof(buffer), "Hello, my name is %s, I am %d years old, I have %u children, %llu houses, and %lld sandwiches.\n", d.name, d.age, d.children, d.houses, d.sandwiches);
+		snprintf(buffer, sizeof(buffer), "Hello, my name is %s, I am %d years old, I have %u children, %llu houses, and %lld sandwiches.", d.name, d.age, d.children, d.houses, d.sandwiches);
 		BENCH_STOP("Printf");
 
 		process(buffer);
@@ -40,7 +40,7 @@ int main()
 
 		BENCH_START("Cout");
 		std::ostringstream buffer;
-		buffer << "Hello, my name is " << d.name << ", I am " << d.age << " years old, I have " << d.children << " children, " << d.houses << " houses, and " << d.sandwiches << " sandwiches." << std::endl;
+		buffer << "Hello, my name is " << d.name << ", I am " << d.age << " years old, I have " << d.children << " children, " << d.houses << " houses, and " << d.sandwiches << " sandwiches.";
 		BENCH_STOP("Cout");
 
 		process(buffer);

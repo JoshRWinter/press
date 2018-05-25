@@ -177,50 +177,38 @@ namespace press
 	class writer
 	{
 	public:
-		static const int DEFAULT_BUFFER_SIZE = 1024;
-
 		writer(print_target target, FILE *fp, char *const user_buffer, const unsigned user_buffer_size)
 			: m_target(target)
 			, m_fp(fp)
-			, m_buffer(target == print_target::BUFFER ? user_buffer : m_automatic_buffer)
+			, m_buffer(user_buffer)
 			, m_bookmark(0)
-			, m_size(target == print_target::BUFFER ? user_buffer_size : DEFAULT_BUFFER_SIZE)
+			, m_size(user_buffer_size)
 		{}
 		writer(const writer&) = delete;
 		writer(writer&&) = delete;
-		void operator=(const writer&) = delete;
-		void operator=(writer&&) = delete;
-
-		inline void write(const char *const buf, const unsigned count)
+		~writer()
 		{
-			const unsigned written = std::min(m_size - m_bookmark, count);
-
-			memcpy(m_buffer + m_bookmark, buf, written);
-			m_bookmark += written;
-
-			if(written < count && flush())
-				write(buf + written, count - written);
+			if(m_target == print_target::BUFFER)
+				m_buffer[m_bookmark >= m_size ? m_bookmark - 1 : m_bookmark] = 0;
 		}
 
-		bool flush()
+		inline void write(const char *const buf, const unsigned count)
 		{
 			switch(m_target)
 			{
 				case print_target::FILE_P:
-					fwrite(m_buffer, 1, m_bookmark, m_fp);
+					fwrite(buf, 1, count, m_fp);
 					break;
 				case print_target::BUFFER:
-					m_buffer[m_bookmark >= m_size ? m_bookmark - 1 : m_bookmark] = 0;
-					// can't flush
-					return false;
+				{
+					const unsigned written = std::min(m_size - m_bookmark, count);
+
+					memcpy(m_buffer + m_bookmark, buf, written);
+					m_bookmark += written;
+					break;
+				}
 			}
-
-			m_bookmark = 0;
-			return true;
 		}
-
-		inline int size() const { return m_size; }
-		inline char *buffer() const { return m_buffer; }
 
 	private:
 		const print_target m_target;
@@ -228,7 +216,6 @@ namespace press
 		char *const m_buffer;
 		unsigned m_bookmark; // first unwritten byte
 		const unsigned m_size;
-		char m_automatic_buffer[DEFAULT_BUFFER_SIZE];
 	};
 
 	class hex;
@@ -685,8 +672,6 @@ namespace press
 
 		if(bookmark < fmt_len)
 			print_plain(fmt, bookmark, fmt_len, output);
-
-		output.flush();
 	}
 
 	template <typename T> std::string to_string(const T&)

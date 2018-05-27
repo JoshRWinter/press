@@ -189,7 +189,7 @@ namespace press
 		~writer()
 		{
 			if(m_target == print_target::BUFFER)
-				m_buffer[m_bookmark >= m_size ? m_bookmark - 1 : m_bookmark] = 0;
+				m_buffer[m_bookmark >= m_size ? m_size - 1 : m_bookmark] = 0;
 		}
 
 		inline void write(const char *const buf, const unsigned count)

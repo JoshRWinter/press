@@ -570,23 +570,6 @@ namespace press
 						: (count_specifiers(fmt, len, count + 1, find_partner(fmt, len, index + 1) + 1)))));
 	}
 
-	void print_plain(const char *fmt, unsigned start, unsigned spec_begin, writer &buffer)
-	{
-		const char *const substr = fmt + start;
-		const char *const position = strstr(substr, "{{}");
-		const bool found = position != NULL && position < fmt + spec_begin;
-		const unsigned index = found == false ? -1 : (position - fmt);
-		const unsigned len = found == false ? spec_begin - start : (index - start);
-
-		if(found == false)
-			buffer.write(substr, len);
-		else
-		{
-			buffer.write(substr, len + 1);
-			print_plain(fmt, index + 3, spec_begin, buffer);
-		}
-	}
-
 	void printer(const char *const fmt, const parameter *const params, const unsigned pack_size, const print_target target, FILE *fp, char *userbuffer, const unsigned userbuffer_size)
 	{
 		const unsigned fmt_len = strlen(fmt);
@@ -607,20 +590,19 @@ namespace press
 
 				if(c == '{')
 				{
-					if(is_literal_brace(fmt, fmt_len, spec_begin))
-					{
-						spec_begin += 2;
-						continue;
-					}
-					else
-					{
-						break;
-					}
+					break;
 				}
 			}
 
-			// print the "before text"
-			print_plain(fmt, bookmark, spec_begin, output);
+			// print the "before" text
+			output.write(fmt + bookmark, spec_begin - bookmark);
+			if(is_literal_brace(fmt, fmt_len, spec_begin))
+			{
+				output.write("{", 1);
+				bookmark = spec_begin + 3;
+				--k;
+				continue;
+			}
 
 			settings format_settings;
 			bookmark = settings::parse(fmt, spec_begin + 1, fmt_len, format_settings) + 1;
@@ -636,7 +618,7 @@ namespace press
 		}
 
 		if(bookmark < fmt_len)
-			print_plain(fmt, bookmark, fmt_len, output);
+			output.write(fmt + bookmark, fmt_len - bookmark);
 	}
 
 	template <typename T> std::string to_string(const T&)

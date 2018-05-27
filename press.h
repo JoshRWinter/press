@@ -66,112 +66,81 @@ namespace press
 
 	struct settings
 	{
-		settings(const char *fmt, unsigned first, unsigned len)
+		settings()
 		{
-			enum class states
-			{
-				READING_FLAGS,
-				READING_WIDTH,
-				READING_PRECISION,
-				READING_INDEX
-			};
-
 			reset();
-			states state = states::READING_FLAGS;
-
-			for(unsigned i = 0; i < len;)
-			{
-				const char c = fmt[first + i];
-
-				if(state == states::READING_FLAGS)
-				{
-					state = states::READING_WIDTH;
-
-					switch(c)
-					{
-						case '0':
-							zero_pad = true;
-							break;
-						case '-':
-							left_justify = true;
-							break;
-						default:
-							continue;
-					}
-				}
-				else if(state == states::READING_WIDTH)
-				{
-					if(c == '.')
-					{
-						state = states::READING_PRECISION;
-						continue;
-					}
-					else if(c == '@')
-					{
-						state = states::READING_INDEX;
-						continue;
-					}
-					else if(!isdigit(c))
-					{
-						reset();
-						break;
-					}
-
-					width *= 10;
-					width += c - '0';
-				}
-				else if(state == states::READING_PRECISION)
-				{
-					if(c != '.')
-					{
-						if(c == '@')
-						{
-							state = states::READING_INDEX;
-							continue;
-						}
-						if(!isdigit(c))
-						{
-							reset();
-							break;
-						}
-
-						precision_specified = true;
-						precision *= 10;
-						precision += c - '0';
-					}
-				}
-				else if(state == states::READING_INDEX)
-				{
-					if(c != '@')
-					{
-						if(!isdigit(c))
-						{
-							reset();
-							break;
-						}
-
-						if(index == -1)
-							index = 0;
-
-						index *= 10;
-						index += c - '0';
-					}
-				}
-
-				++i;
-			}
 		}
 
-		void reset(){ zero_pad = false; left_justify = false; width = 0; precision = 0; index = -1; precision_specified = false; }
+		static int parse(const char *const fmt, const unsigned first, const unsigned len, settings &s)
+		{
+			unsigned bookmark = first;
+
+			// consume flags
+			if(bookmark >= len)
+				return bookmark;
+			if(fmt[bookmark] == '0')
+			{
+				s.zero_pad = true;
+				++bookmark;
+			}
+			else if(fmt[bookmark] == '-')
+			{
+				s.left_justify = true;
+				++bookmark;
+			}
+
+			// consume width
+			if(bookmark >= len)
+				return bookmark;
+			s.width = consume_number(fmt, bookmark, len);
+
+			// consume precision
+			if(bookmark >= len)
+				return bookmark;
+			if(fmt[bookmark] == '.')
+			{
+				++bookmark;
+				s.precision = consume_number(fmt, bookmark, len);
+			}
+
+			// consume index
+			if(bookmark >= len)
+				return bookmark;
+			if(fmt[bookmark] == '@')
+			{
+				++bookmark;
+				s.index = consume_number(fmt, bookmark, len);
+			}
+
+			return bookmark;
+		}
+
+		void reset(){ zero_pad = false; left_justify = false; width = -1; precision = -1; index = -1; }
+
+	private:
+		static signed char consume_number(const char *const fmt, unsigned &bookmark, const unsigned len)
+		{
+			unsigned char number = 0;
+			bool found = false;
+
+			while(bookmark < len && isdigit(fmt[bookmark]))
+			{
+				found = true;
+				number *= 10;
+				number += fmt[bookmark++] - '0';
+			}
+
+			return found ? number : -1;
+		}
+	public:
 
 		// flags
 		bool zero_pad;
 		bool left_justify;
-		bool precision_specified;
 
-		unsigned char width;
-		unsigned char precision;
-		int index; // starts at 1
+		signed char width;
+		signed char precision;
+		signed char index; // starts at 1
 	};
 
 	class writer
@@ -426,7 +395,7 @@ namespace press
 		void convert_float64(writer &buffer, const settings &format) const
 		{
 			char buf[325];
-			const int written = snprintf(buf, sizeof(buf), "%.*f", format.precision_specified ? format.precision : 6, object.f64);
+			const int written = snprintf(buf, sizeof(buf), "%.*f", format.precision >= 0 ? format.precision : 6, object.f64);
 			const int min = std::min(324, written);
 			buffer.write(buf, min);
 		}
@@ -436,7 +405,7 @@ namespace press
 			char string[20];
 			const unsigned written = stringify_int(string, object.ulli);
 
-			unsigned width = format.width;
+			unsigned width = format.width >= 0 ? format.width : 0;
 			unsigned max = std::max(written, width);
 			const char pad = format.zero_pad ? '0' : ' ';
 
@@ -457,7 +426,7 @@ namespace press
 			char string[20];
 			const unsigned written = stringify_int(string, object.lli);
 
-			unsigned width = format.width;
+			unsigned width = format.width >= 0 ? format.width : 0;
 			unsigned max = std::max(written, width);
 			const char pad = format.zero_pad ? '0' : ' ';
 
@@ -631,9 +600,7 @@ namespace press
 		for(unsigned k = 0; k < spec_count; ++k)
 		{
 			// find the first open specifier bracket and extract the spec
-			unsigned spec_len = 0;
 			unsigned spec_begin = bookmark;
-			int spec_end = spec_begin;
 			for(; spec_begin < fmt_len; ++spec_begin)
 			{
 				const char c = fmt[spec_begin];
@@ -647,8 +614,6 @@ namespace press
 					}
 					else
 					{
-						spec_end = find_partner(fmt, fmt_len, spec_begin);
-						spec_len = spec_end - spec_begin - 1;
 						break;
 					}
 				}
@@ -657,7 +622,9 @@ namespace press
 			// print the "before text"
 			print_plain(fmt, bookmark, spec_begin, output);
 
-			settings format_settings(fmt, spec_begin + 1, spec_len);
+			settings format_settings;
+			bookmark = settings::parse(fmt, spec_begin + 1, fmt_len, format_settings) + 1;
+
 			const bool spec_index_overridden = format_settings.index >= 0;
 			const int index = spec_index_overridden ? format_settings.index - 1 : k;
 			if(spec_index_overridden && (index < 0 || index >= (int)pack_size))
@@ -666,8 +633,6 @@ namespace press
 				output.write("{UNDEFINED}", 11);
 			else
 				params[index].convert(output, format_settings);
-
-			bookmark = spec_end + 1;
 		}
 
 		if(bookmark < fmt_len)

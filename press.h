@@ -494,7 +494,8 @@ namespace press
 
 		void convert_string(writer &buffer, const settings &format) const
 		{
-			const auto len = strlen(object.cstr);
+			const auto strlength = strlen(object.cstr);
+			const int len = std::min(pr == -1 ? (format.precision < 0 ? strlength : format.precision) : pr, strlength);
 			buffer.write(object.cstr, len);
 		}
 
@@ -681,7 +682,7 @@ namespace press
 
 	template <typename T> inline void add(const T &x, parameter *array, unsigned &index)
 	{
-		array[index++].init(std::move(press::to_string(x)));;
+		array[index++].init(std::move(press::to_string(x)));
 	}
 
 	// add the argument to the parameter array

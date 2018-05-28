@@ -37,39 +37,41 @@ examples
 
 */
 
-#include <tuple>
-#define variadic_size(...) std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value
-
 #define pressfmtcheck(fmt, count) \
-	static_assert(press::is_balanced(fmt, strlen(fmt)), "press: specifier brackets are not balanced!"); \
-	static_assert(press::count_specifiers(fmt, strlen(fmt)) >= count, "press: too many parameters!")
+	static_assert(press::is_balanced(fmt, press::string_length(fmt)), "press: specifier brackets are not balanced!"); \
+	static_assert(press::count_specifiers(fmt, press::string_length(fmt)) >= count, "press: too many parameters!")
 
 #define prwrite(fmt, ...) \
-	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)); \
+	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
 	press::write_(press::print_target::FILE_P, stdout, NULL, 0u, fmt, ##__VA_ARGS__)
 
 #define prwriteln(fmt, ...) \
-	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)); \
+	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
 	press::writeln(fmt, ##__VA_ARGS__)
 
 #define prfwrite(fp, fmt, ...) \
-	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)); \
+	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
 	press::write_(press::print_target::FILE_P, fp, NULL, 0u, fmt, ##__VA_ARGS__)
 
 #define prfwriteln(fp, fmt, ...) \
-	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)); \
+	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
 	press::fwriteln(fp, fmt, ##__VA_ARGS__)
 
 #define prbwrite(userbuffer, size, fmt, ...) \
-	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)); \
+	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
 	press::write_(press::print_target::BUFFER, NULL, userbuffer, size, fmt, ##__VA_ARGS__)
 
 #define prbwriteln(userbuffer, size, fmt, ...) \
-	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)); \
+	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
 	press::bwriteln(userbuffer, size, fmt, ##__VA_ARGS__)
 
 namespace press
 {
+	constexpr unsigned string_length(const char *s, unsigned len = 0)
+	{
+		return s[len] == 0 ? len : string_length(s, len + 1);
+	}
+
 	template <typename T> struct width_spec
 	{
 		inline width_spec(const T &t, signed char v) : arg(t), value(v) {}

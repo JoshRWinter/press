@@ -1,10 +1,18 @@
-#include "benchmark.h"
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
+struct data
+{
+	const char *name;
+	int age;
+	unsigned children;
+	unsigned long long houses;
+	long long sandwiches;
+};
 
 data get_data()
 {

@@ -42,19 +42,31 @@ examples
 
 #define pressfmtcheck(fmt, count) \
 	static_assert(press::is_balanced(fmt, strlen(fmt)), "press: specifier brackets are not balanced!"); \
-	static_assert(press::count_specifiers(fmt, strlen(fmt)) >= count, "press: too many parameters!");
+	static_assert(press::count_specifiers(fmt, strlen(fmt)) >= count, "press: too many parameters!")
 
 #define prwrite(fmt, ...) \
-	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)) \
+	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)); \
 	press::write_(press::print_target::FILE_P, stdout, NULL, 0u, fmt, ##__VA_ARGS__)
 
+#define prwriteln(fmt, ...) \
+	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)); \
+	press::writeln(fmt, ##__VA_ARGS__)
+
 #define prfwrite(fp, fmt, ...) \
-	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)) \
+	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)); \
 	press::write_(press::print_target::FILE_P, fp, NULL, 0u, fmt, ##__VA_ARGS__)
 
+#define prfwriteln(fp, fmt, ...) \
+	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)); \
+	press::fwriteln(fp, fmt, ##__VA_ARGS__)
+
 #define prbwrite(userbuffer, size, fmt, ...) \
-	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)) \
+	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)); \
 	press::write_(press::print_target::BUFFER, NULL, userbuffer, size, fmt, ##__VA_ARGS__)
+
+#define prbwriteln(userbuffer, size, fmt, ...) \
+	pressfmtcheck(fmt, variadic_size(__VA_ARGS__)); \
+	press::bwriteln(userbuffer, size, fmt, ##__VA_ARGS__)
 
 namespace press
 {
@@ -624,7 +636,7 @@ namespace press
 						: (count_specifiers(fmt, len, count + 1, find_partner(fmt, len, index + 1) + 1)))));
 	}
 
-	void printer(const char *const fmt, const parameter *const params, const unsigned pack_size, const print_target target, FILE *fp, char *userbuffer, const unsigned userbuffer_size)
+	unsigned printer(const char *const fmt, const parameter *const params, const unsigned pack_size, const print_target target, FILE *fp, char *userbuffer, const unsigned userbuffer_size)
 	{
 		const unsigned fmt_len = strlen(fmt);
 		const unsigned spec_count = count_specifiers(fmt, fmt_len);
@@ -673,6 +685,8 @@ namespace press
 
 		if(bookmark < fmt_len)
 			output.write(fmt + bookmark, fmt_len - bookmark);
+
+		return userbuffer == NULL ? bookmark : std::min(bookmark, userbuffer_size);
 	}
 
 	template <typename T> std::string to_string(const T&)
@@ -760,14 +774,40 @@ namespace press
 		write_(print_target::FILE_P, stdout, NULL, 0, fmt, ts...);
 	}
 
+	template <typename... Ts> void writeln(const char *fmt, const Ts&... ts)
+	{
+		write_(print_target::FILE_P, stdout, NULL, 0, fmt, ts...);
+		puts("");
+	}
+
 	template <typename... Ts> void fwrite(FILE *fp, const char *fmt, const Ts&... ts)
 	{
 		write_(print_target::FILE_P, fp, NULL, 0, fmt, ts...);
 	}
 
+	template <typename... Ts> void fwriteln(FILE *fp, const char *fmt, const Ts&... ts)
+	{
+		write_(print_target::FILE_P, fp, NULL, 0, fmt, ts...);
+		fputs("", fp);
+	}
+
 	template <typename... Ts> void bwrite(char *userbuffer, unsigned userbuffer_size, const char *fmt, const Ts&... ts)
 	{
 		write_(print_target::BUFFER, NULL, userbuffer, userbuffer_size, fmt, ts...);
+	}
+
+	template <typename... Ts> void bwriteln(char *userbuffer, unsigned userbuffer_size, const char *fmt, const Ts&... ts)
+	{
+		write_(print_target::BUFFER, NULL, userbuffer, userbuffer_size, fmt, ts...);
+		if(userbuffer_size > 0)
+		{
+			const auto len = strlen(userbuffer);
+			if(len + 1 < userbuffer_size)
+			{
+				userbuffer[len] = '\n';
+				userbuffer[len + 1] = 0;
+			}
+		}
 	}
 }
 

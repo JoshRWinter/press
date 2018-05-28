@@ -20,6 +20,7 @@ namespace press
 int main()
 {
 	prwrite("\"the year is {}\"\n", 2018);
+	prwrite("\"the year is {0}\"\n", press::set_width(2018, 10));
 	prwrite("\"the year is {5}\"\n", 2018u);
 	prwrite("\"the year is {05}\"\n", 2018ul);
 	prwrite("\"the year is {-5}\"\n", 2018ll);

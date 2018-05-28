@@ -58,6 +58,43 @@ examples
 
 namespace press
 {
+	template <typename T> struct width_spec
+	{
+		inline width_spec(const T &t, signed char v) : arg(t), value(v) {}
+		const T &arg;
+		const signed char value;
+	};
+
+	template <typename T> struct precision_spec
+	{
+		inline precision_spec(const T &t, signed char v) : arg(t), value(v) {}
+		const T &arg;
+		const signed char value;
+	};
+
+	template <typename T> struct width_precision_spec
+	{
+		inline width_precision_spec(const T &t, signed char v1, signed char v2) : arg(t), w(v1), p(v2) {}
+		const T &arg;
+		const signed char w;
+		const signed char p;
+	};
+
+	template <typename T> inline width_spec<T> set_width(const T &arg, signed char w)
+	{
+		return width_spec<T>(arg, w);
+	}
+
+	template <typename T> inline precision_spec<T> set_prec(const T &arg, signed char p)
+	{
+		return precision_spec<T>(arg, p);
+	}
+
+	template <typename T> inline width_precision_spec<T> set_width_precision(const T &arg, signed char w, signed char p)
+	{
+		return width_precision_spec<T>(arg, w, p);
+	}
+
 	enum class print_target
 	{
 		FILE_P,
@@ -223,44 +260,58 @@ namespace press
 			}
 		}
 
-		void init(const double d)
+		void init(const double d, const signed char w = -1, const signed char p = -1)
 		{
+			wi = w;
+			pr = p;
 			type = ptype::FLOAT64;
 			object.f64 = d;
 		}
 
-		void init(const signed long long i)
+		void init(const signed long long i, const signed char w = -1, const signed char p = -1)
 		{
+			wi = w;
+			pr = p;
 			type = ptype::SIGNED_INT;
 			object.lli = i;
 		}
 
-		void init(const unsigned long long i)
+		void init(const unsigned long long i, const signed char w = -1, const signed char p = -1)
 		{
+			wi = w;
+			pr = p;
 			type = ptype::UNSIGNED_INT;
 			object.ulli = i;
 		}
 
-		void init(const bool b)
+		void init(const bool b, const signed char w = -1, const signed char p = -1)
 		{
+			wi = w;
+			pr = p;
 			type = ptype::BOOLEAN_;
 			object.b = b;
 		}
 
-		void init(const char c)
+		void init(const char c, const signed char w = -1, const signed char p = -1)
 		{
+			wi = w;
+			pr = p;
 			type = ptype::CHARACTER;
 			object.c = c;
 		}
 
-		void init(const char *s)
+		void init(const char *s, const signed char w = -1, const signed char p = -1)
 		{
+			wi = w;
+			pr = p;
 			type = ptype::BUFFER;
 			object.cstr = s;
 		}
 
-		void init(std::string &&str)
+		void init(std::string &&str, const signed char w = -1, const signed char p = -1)
 		{
+			wi = w;
+			pr = p;
 			type = ptype::CUSTOM;
 			new (object.rawbuf) std::string(std::move(str));
 		}
@@ -395,7 +446,7 @@ namespace press
 		void convert_float64(writer &buffer, const settings &format) const
 		{
 			char buf[325];
-			const int written = snprintf(buf, sizeof(buf), "%.*f", format.precision >= 0 ? format.precision : 6, object.f64);
+			const int written = snprintf(buf, sizeof(buf), "%.*f", pr == -1 ? (format.precision >= 0 ? format.precision : 6) : pr, object.f64);
 			const int min = std::min(324, written);
 			buffer.write(buf, min);
 		}
@@ -405,7 +456,7 @@ namespace press
 			char string[20];
 			const unsigned written = stringify_int(string, object.ulli);
 
-			unsigned width = format.width >= 0 ? format.width : 0;
+			unsigned width = wi == -1 ? (format.width >= 0 ? format.width : 0) : wi;
 			unsigned max = std::max(written, width);
 			const char pad = format.zero_pad ? '0' : ' ';
 
@@ -426,7 +477,7 @@ namespace press
 			char string[20];
 			const unsigned written = stringify_int(string, object.lli);
 
-			unsigned width = format.width >= 0 ? format.width : 0;
+			unsigned width = wi == -1 ? (format.width >= 0 ? format.width : 0) : wi;
 			unsigned max = std::max(written, width);
 			const char pad = format.zero_pad ? '0' : ' ';
 
@@ -475,6 +526,8 @@ namespace press
 			const char *cstr;
 			char rawbuf[sizeof(std::string)];
 		}object;
+		signed char wi; // width
+		signed char pr; // precision
 	};
 
 	struct hex
@@ -631,28 +684,33 @@ namespace press
 		array[index++].init(std::move(press::to_string(x)));;
 	}
 
-	// meaningfull specializations
-	inline void add(const unsigned long long x, parameter *array, unsigned &index) { array[index++].init(x); }
-	inline void add(const long long x, parameter *array, unsigned &index) { array[index++].init(x); }
-	inline void add(const char x, parameter *array, unsigned &index) { array[index++].init(x); }
-	inline void add(const double x, parameter *array, unsigned &index) { array[index++].init(x); }
-	inline void add(const char *x, parameter *array, unsigned &index) { array[index++].init(x); }
-	inline void add(const bool x, parameter *array, unsigned &index) { array[index++].init(x); }
-	inline void add(const std::string &x, parameter *array, unsigned &index) { array[index++].init(x.c_str()); }
-	inline void add(const hex &x, parameter *array, unsigned &index) { array[index++].init(x.m_buffer); }
-	inline void add(const HEX &x, parameter *array, unsigned &index) { array[index++].init(x.m_buffer); }
-	inline void add(const oct &x, parameter *array, unsigned &index) { array[index++].init(x.m_buffer); }
-	inline void add(const ptr &x, parameter *array, unsigned &index) { array[index++].init(x.m_buffer); }
+	// add the argument to the parameter array
+	inline void add(const unsigned long long x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
+	inline void add(const long long x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
+	inline void add(const char x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
+	inline void add(const double x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
+	inline void add(const char *x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
+	inline void add(const bool x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
+	inline void add(const std::string &x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x.c_str(), w, p); }
+	inline void add(const hex &x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
+	inline void add(const HEX &x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
+	inline void add(const oct &x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
+	inline void add(const ptr &x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
 
-	// specializations that delegate to other specializations
-	inline void add(const unsigned long x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
-	inline void add(const unsigned x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
-	inline void add(const unsigned short x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
-	inline void add(const unsigned char x, parameter *array, unsigned &index) { add((unsigned long long)x, array, index); }
-	inline void add(const signed long x, parameter *array, unsigned &index) { add((long long)x, array, index); }
-	inline void add(const int x, parameter *array, unsigned &index) { add((long long)x, array, index); }
-	inline void add(const short x, parameter *array, unsigned &index) { add((long long)x, array, index); }
-	inline void add(const float x, parameter *array, unsigned &index) { array[index++].init((double)x); }
+	// forward to another add overload
+	inline void add(const unsigned long x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { add((unsigned long long)x, array, index, w, p); }
+	inline void add(const unsigned x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { add((unsigned long long)x, array, index, w, p); }
+	inline void add(const unsigned short x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { add((unsigned long long)x, array, index, w, p); }
+	inline void add(const unsigned char x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { add((unsigned long long)x, array, index, w, p); }
+	inline void add(const signed long x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { add((long long)x, array, index, w, p); }
+	inline void add(const int x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { add((long long)x, array, index, w, p); }
+	inline void add(const short x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { add((long long)x, array, index, w, p); }
+	inline void add(const float x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init((double)x, w, p); }
+
+	// runtime width and precision
+	template <typename T> inline void add(const press::width_spec<T> &pw, parameter *array, unsigned &index) { add(pw.arg, array, index, pw.value, -1); }
+	template <typename T> inline void add(const press::precision_spec<T> &pp, parameter *array, unsigned &index) { add(pp.arg, array, index, -1, pp.value); }
+	template <typename T> inline void add(const press::width_precision_spec<T> &pwp, parameter *array, unsigned &index) { add(pwp.arg, array, index, pwp.w, pwp.p); }
 
 	// interfaces
 

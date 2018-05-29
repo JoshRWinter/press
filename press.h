@@ -67,7 +67,7 @@ examples
 
 namespace press
 {
-	constexpr unsigned string_length(const char *s, unsigned len = 0)
+	constexpr int string_length(const char *s, int len = 0)
 	{
 		return s[len] == 0 ? len : string_length(s, len + 1);
 	}
@@ -122,9 +122,9 @@ namespace press
 			reset();
 		}
 
-		static int parse(const char *const fmt, const unsigned first, const unsigned len, settings &s)
+		static int parse(const char *const fmt, const int first, const int len, settings &s)
 		{
-			unsigned bookmark = first;
+			int bookmark = first;
 
 			// consume flags
 			if(bookmark >= len)
@@ -169,7 +169,7 @@ namespace press
 		void reset(){ zero_pad = false; left_justify = false; width = -1; precision = -1; index = -1; }
 
 	private:
-		static signed char consume_number(const char *const fmt, unsigned &bookmark, const unsigned len)
+		static signed char consume_number(const char *const fmt, int &bookmark, const int len)
 		{
 			unsigned char number = 0;
 			bool found = false;
@@ -197,7 +197,7 @@ namespace press
 	class writer
 	{
 	public:
-		writer(print_target target, FILE *fp, char *const user_buffer, const unsigned user_buffer_size)
+		writer(print_target target, FILE *fp, char *const user_buffer, const int user_buffer_size)
 			: m_target(target)
 			, m_fp(fp)
 			, m_buffer(user_buffer)
@@ -212,7 +212,7 @@ namespace press
 				m_buffer[m_bookmark >= m_size ? m_size - 1 : m_bookmark] = 0;
 		}
 
-		inline void write(const char *const buf, const unsigned count)
+		inline void write(const char *const buf, const int count)
 		{
 			switch(m_target)
 			{
@@ -221,7 +221,7 @@ namespace press
 					break;
 				case print_target::BUFFER:
 				{
-					const unsigned written = std::min(m_size - m_bookmark, count);
+					const int written = std::min(m_size - m_bookmark, count);
 
 					memcpy(m_buffer + m_bookmark, buf, written);
 					m_bookmark += written;
@@ -234,8 +234,8 @@ namespace press
 		const print_target m_target;
 		FILE *const m_fp;
 		char *const m_buffer;
-		unsigned m_bookmark; // first unwritten byte
-		const unsigned m_size;
+		int m_bookmark; // first unwritten byte
+		const int m_size;
 	};
 
 	class hex;
@@ -361,10 +361,10 @@ namespace press
 		}
 
 	private:
-		static void reverse(char *buff, unsigned len)
+		static void reverse(char *buff, int len)
 		{
-			unsigned index = 0;
-			unsigned opposite = len - 1;
+			int index = 0;
+			int opposite = len - 1;
 			while(index < opposite)
 			{
 				char *a = buff + index;
@@ -379,7 +379,7 @@ namespace press
 			}
 		}
 
-		template <typename T> static unsigned stringify_int(char *buffer, T i)
+		template <typename T> static int stringify_int(char *buffer, T i)
 		{
 			if(!std::is_integral<T>::value)
 				return 0;
@@ -396,7 +396,7 @@ namespace press
 				i = std::llabs(i);
 			}
 
-			unsigned place = 0;
+			int place = 0;
 			if(i == 0)
 				buffer[place++] = '0';
 			else
@@ -415,9 +415,9 @@ namespace press
 			return place;
 		}
 
-		static unsigned stringify_int_hex(char *buffer, unsigned long long i, bool uppercase)
+		static int stringify_int_hex(char *buffer, unsigned long long i, bool uppercase)
 		{
-			unsigned place = 0;
+			int place = 0;
 			const char base_character = uppercase ? 'A' : 'a';
 
 			if(i == 0)
@@ -439,9 +439,9 @@ namespace press
 			return place;
 		}
 
-		static unsigned stringify_int_oct(char *buffer, unsigned long long i)
+		static int stringify_int_oct(char *buffer, unsigned long long i)
 		{
-			unsigned place = 0;
+			int place = 0;
 			if(i == 0)
 				buffer[place++] = '0';
 			else
@@ -468,41 +468,41 @@ namespace press
 		void convert_uint(writer &buffer, const settings &format) const
 		{
 			char string[20];
-			const unsigned written = stringify_int(string, object.ulli);
+			const int written = stringify_int(string, object.ulli);
 
-			unsigned width = wi == -1 ? (format.width >= 0 ? format.width : 0) : wi;
-			unsigned max = std::max(written, width);
+			int width = wi == -1 ? (format.width >= 0 ? format.width : 0) : wi;
+			int max = std::max(written, width);
 			const char pad = format.zero_pad ? '0' : ' ';
 
 			if(!format.left_justify)
-				for(unsigned i = max; i > written; --i)
+				for(int i = max; i > written; --i)
 					buffer.write(&pad, 1);
 
 			buffer.write(string, written);
 
 			const char space = ' ';
 			if(format.left_justify)
-				for(unsigned i = max; i > written; --i)
+				for(int i = max; i > written; --i)
 					buffer.write(&space, 1);
 		}
 
 		void convert_int(writer &buffer, const settings &format) const
 		{
 			char string[20];
-			const unsigned written = stringify_int(string, object.lli);
+			const int written = stringify_int(string, object.lli);
 
-			unsigned width = wi == -1 ? (format.width >= 0 ? format.width : 0) : wi;
-			unsigned max = std::max(written, width);
+			int width = wi == -1 ? (format.width >= 0 ? format.width : 0) : wi;
+			int max = std::max(written, width);
 			const char pad = format.zero_pad ? '0' : ' ';
 
 			if(!format.left_justify)
-				for(unsigned i = max; i > written; --i)
+				for(int i = max; i > written; --i)
 					buffer.write(&pad, 1);
 
 			buffer.write(string, written);
 
 			if(format.left_justify)
-				for(unsigned i = max; i > written; --i)
+				for(int i = max; i > written; --i)
 					buffer.write(&pad, 1);
 		}
 
@@ -590,7 +590,7 @@ namespace press
 		char m_buffer[17];
 	};
 
-	constexpr bool is_literal_brace(const char *fmt, unsigned len, unsigned index)
+	constexpr bool is_literal_brace(const char *fmt, int len, int index)
 	{
 		return
 		(index > len - 3) ?
@@ -598,7 +598,7 @@ namespace press
 			: (fmt[index] == '{' && fmt[index + 1] == '{' && fmt[index + 2] == '}');
 	}
 
-	constexpr bool is_balanced(const char *fmt, unsigned len, unsigned index = 0, int open = 0)
+	constexpr bool is_balanced(const char *fmt, int len, int index = 0, int open = 0)
 	{
 		return
 			(index >= len) ?
@@ -614,7 +614,7 @@ namespace press
 						: (is_balanced(fmt, len, index + 1, open))));
 	}
 
-	constexpr int find_partner(const char *fmt, unsigned len, unsigned index)
+	constexpr int find_partner(const char *fmt, int len, int index)
 	{
 		return
 		(index >= len) ?
@@ -624,7 +624,7 @@ namespace press
 				: (find_partner(fmt, len, index + 1)));
 	}
 
-	constexpr unsigned count_specifiers(const char *fmt, unsigned len, unsigned count = 0, unsigned index = 0)
+	constexpr int count_specifiers(const char *fmt, int len, int count = 0, int index = 0)
 	{
 		return
 		(index >= len) ?
@@ -638,20 +638,20 @@ namespace press
 						: (count_specifiers(fmt, len, count + 1, find_partner(fmt, len, index + 1) + 1)))));
 	}
 
-	unsigned printer(const char *const fmt, const parameter *const params, const unsigned pack_size, const print_target target, FILE *fp, char *userbuffer, const unsigned userbuffer_size)
+	void printer(const char *const fmt, const parameter *const params, const int pack_size, const print_target target, FILE *fp, char *userbuffer, const int userbuffer_size)
 	{
-		const unsigned fmt_len = strlen(fmt);
-		const unsigned spec_count = count_specifiers(fmt, fmt_len);
+		const int fmt_len = strlen(fmt);
+		const int spec_count = count_specifiers(fmt, fmt_len);
 
 		// buffering
 		writer output(target, fp, userbuffer, userbuffer_size);
 
 		// begin printing
-		unsigned bookmark = 0;
-		for(unsigned k = 0; k < spec_count; ++k)
+		int bookmark = 0;
+		for(int k = 0; k < spec_count; ++k)
 		{
 			// find the first open specifier bracket and extract the spec
-			unsigned spec_begin = bookmark;
+			int spec_begin = bookmark;
 			for(; spec_begin < fmt_len; ++spec_begin)
 			{
 				const char c = fmt[spec_begin];
@@ -687,8 +687,6 @@ namespace press
 
 		if(bookmark < fmt_len)
 			output.write(fmt + bookmark, fmt_len - bookmark);
-
-		return userbuffer == NULL ? bookmark : std::min(bookmark, userbuffer_size);
 	}
 
 	template <typename T> std::string to_string(const T&)
@@ -696,43 +694,43 @@ namespace press
 		return "{UNKNOWN DATA TYPE}";
 	}
 
-	template <typename T> inline void add(const T &x, parameter *array, unsigned &index)
+	template <typename T> inline void add(const T &x, parameter *array, int &index)
 	{
 		array[index++].init(std::move(press::to_string(x)));
 	}
 
 	// add the argument to the parameter array
-	inline void add(const unsigned long long x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
-	inline void add(const long long x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
-	inline void add(const char x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
-	inline void add(const double x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
-	inline void add(const char *x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
-	inline void add(const bool x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
-	inline void add(const std::string &x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x.c_str(), w, p); }
-	inline void add(const hex &x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
-	inline void add(const HEX &x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
-	inline void add(const oct &x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
-	inline void add(const ptr &x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
+	inline void add(const unsigned long long x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
+	inline void add(const long long x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
+	inline void add(const char x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
+	inline void add(const double x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
+	inline void add(const char *x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
+	inline void add(const bool x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
+	inline void add(const std::string &x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x.c_str(), w, p); }
+	inline void add(const hex &x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
+	inline void add(const HEX &x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
+	inline void add(const oct &x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
+	inline void add(const ptr &x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
 
 	// forward to another add overload
-	inline void add(const unsigned long x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { add((unsigned long long)x, array, index, w, p); }
-	inline void add(const unsigned x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { add((unsigned long long)x, array, index, w, p); }
-	inline void add(const unsigned short x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { add((unsigned long long)x, array, index, w, p); }
-	inline void add(const unsigned char x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { add((unsigned long long)x, array, index, w, p); }
-	inline void add(const signed long x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { add((long long)x, array, index, w, p); }
-	inline void add(const int x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { add((long long)x, array, index, w, p); }
-	inline void add(const short x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { add((long long)x, array, index, w, p); }
-	inline void add(const float x, parameter *array, unsigned &index, signed char w = -1, signed char p = -1) { array[index++].init((double)x, w, p); }
+	inline void add(const unsigned long x, parameter *array, int &index, signed char w = -1, signed char p = -1) { add((unsigned long long)x, array, index, w, p); }
+	inline void add(const unsigned x, parameter *array, int &index, signed char w = -1, signed char p = -1) { add((unsigned long long)x, array, index, w, p); }
+	inline void add(const unsigned short x, parameter *array, int &index, signed char w = -1, signed char p = -1) { add((unsigned long long)x, array, index, w, p); }
+	inline void add(const unsigned char x, parameter *array, int &index, signed char w = -1, signed char p = -1) { add((unsigned long long)x, array, index, w, p); }
+	inline void add(const long x, parameter *array, int &index, signed char w = -1, signed char p = -1) { add((long long)x, array, index, w, p); }
+	inline void add(const int x, parameter *array, int &index, signed char w = -1, signed char p = -1) { add((long long)x, array, index, w, p); }
+	inline void add(const short x, parameter *array, int &index, signed char w = -1, signed char p = -1) { add((long long)x, array, index, w, p); }
+	inline void add(const float x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init((double)x, w, p); }
 
 	// runtime width and precision
-	template <typename T> inline void add(const press::width_spec<T> &pw, parameter *array, unsigned &index) { add(pw.arg, array, index, pw.value, -1); }
-	template <typename T> inline void add(const press::precision_spec<T> &pp, parameter *array, unsigned &index) { add(pp.arg, array, index, -1, pp.value); }
-	template <typename T> inline void add(const press::width_precision_spec<T> &pwp, parameter *array, unsigned &index) { add(pwp.arg, array, index, pwp.w, pwp.p); }
+	template <typename T> inline void add(const press::width_spec<T> &pw, parameter *array, int &index) { add(pw.arg, array, index, pw.value, -1); }
+	template <typename T> inline void add(const press::precision_spec<T> &pp, parameter *array, int &index) { add(pp.arg, array, index, -1, pp.value); }
+	template <typename T> inline void add(const press::width_precision_spec<T> &pwp, parameter *array, int &index) { add(pwp.arg, array, index, pwp.w, pwp.p); }
 
 	// interfaces
 
 	const int DEFAULT_AUTO_SIZE = 10;
-	template <typename... Ts> inline void write_(print_target target, FILE *fp, char *userbuffer, unsigned userbuffer_size, const char *fmt, const Ts&... ts)
+	template <typename... Ts> inline void write_(print_target target, FILE *fp, char *userbuffer, int userbuffer_size, const char *fmt, const Ts&... ts)
 	{
 		parameter *storage;
 		std::unique_ptr<parameter[]> dynamic;
@@ -757,7 +755,7 @@ namespace press
 		#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 		#endif
 
-		unsigned index = 0;
+		int index = 0;
 		const char dummy[sizeof...(Ts)] = { (add(ts, storage, index), (char)1)... };
 
 		#if defined (__GNUC__)
@@ -793,12 +791,12 @@ namespace press
 		fputs("", fp);
 	}
 
-	template <typename... Ts> void bwrite(char *userbuffer, unsigned userbuffer_size, const char *fmt, const Ts&... ts)
+	template <typename... Ts> void bwrite(char *userbuffer, int userbuffer_size, const char *fmt, const Ts&... ts)
 	{
 		write_(print_target::BUFFER, NULL, userbuffer, userbuffer_size, fmt, ts...);
 	}
 
-	template <typename... Ts> void bwriteln(char *userbuffer, unsigned userbuffer_size, const char *fmt, const Ts&... ts)
+	template <typename... Ts> void bwriteln(char *userbuffer, int userbuffer_size, const char *fmt, const Ts&... ts)
 	{
 		write_(print_target::BUFFER, NULL, userbuffer, userbuffer_size, fmt, ts...);
 		if(userbuffer_size > 0)

@@ -801,7 +801,7 @@ namespace press
 		write_(print_target::BUFFER, NULL, userbuffer, userbuffer_size, fmt, ts...);
 		if(userbuffer_size > 0)
 		{
-			const auto len = strlen(userbuffer);
+			const int len = strlen(userbuffer);
 			if(len + 1 < userbuffer_size)
 			{
 				userbuffer[len] = '\n';

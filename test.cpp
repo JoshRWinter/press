@@ -19,36 +19,61 @@ namespace press
 
 int main()
 {
-	prwrite("\"the year is {}\"\n", 2018);
-	prwrite("\"the year is {0}\"\n", press::set_width(2018, 10));
-	prwrite("\"the year is {5}\"\n", 2018u);
-	prwrite("\"the year is {05}\"\n", 2018ul);
-	prwrite("\"the year is {-5}\"\n", 2018ll);
-	prwrite("\"pi is {.4}\"\n", 3.1415926);
-	prwrite("\"hex number: {}\"\n", press::hex(859654));
-	prwrite("\"uppercase hex number: 0x{}\"\n", press::HEX(859654));
-	prwrite("\"octal number {}\"\n", press::oct(1455587));
-	prwrite("\"my name is {}\"\n", "Bob");
+	// integers and width/padding
+	prwriteln("the year is {}", 2018);
+	prwriteln("the year is {5}", 2018);
+	prwriteln("the year is {05}", 2018);
+	prwriteln("the year is \"{-5}\"", 2018);
 
-	prwrite("boolean: {}, char: {}\n",true, '.');
-	prwrite("void pointer 0x{}\n", press::ptr((void*)main));
-	prwrite("std::string: {}\n", std::string("hello"));
+	// runtime width
+	prwriteln("the year is {0}", press::set_width(2018, 10));
+
+	// float
+	prwriteln("pi is {.4}", 3.1415926);
+
+	// float with runtime precision
+	prwriteln("pi is {}", press::set_prec(3.1415926, 2));
+
+	// hexadecimal and octal
+	prwriteln("hex number: {}", press::hex(859654));
+	prwriteln("uppercase hex number: 0x{}", press::HEX(859654));
+	prwriteln("octal number {}", press::oct(1455587));
+
+	// string literal and std::string
+	prwriteln("my name is {}", "Bob");
+	prwriteln("std::string: {}", std::string("hello"));
+
+	// limit printed characters
+	prwriteln("my name is {.3}", "sam sampson");
+
+	// booleans
+	prwriteln("boolean: {}", false);
+
+	// characters
+	prwriteln("this char: {}", 'M');
+
+	// void pointer
+	prwriteln("void pointer 0x{}", press::ptr((void*)main));
+
+	// write to a buffer (like snprintf)
 	char cool[13];
 	prbwrite(cool, sizeof(cool), "cool {}", 12.23589f);
-	prwrite("string: {}\n", cool);
+	prwriteln("string: {}, {} chars", cool, strlen(cool));
 
-	prwrite("\"{@2}, {05@1}, {-4@2}\"\n", 31, 55);
+	// positional specifiers
+	prwriteln("{@2}, {05@1}, {-4@2}", 31, 55);
 
+	// write to a struct FILE*
 	FILE *file = fopen("/tmp/test.txt", "w");
 	if(file)
 	{
-		prfwrite(file, "this is a cool {}", "function");
+		prfwriteln(file, "this is a cool {}", "function");
 		fclose(file);
 	}
 
 	// user defined type
 	my_custom_class mcc;
-	prwrite("\"custom type: {@1}\"\n", mcc);
+	prwriteln("custom type: {}", mcc);
 
 	return 0;
 }

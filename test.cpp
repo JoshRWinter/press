@@ -35,9 +35,10 @@ int main()
 	prwriteln("pi is {}", press::set_prec(3.1415926, 2));
 
 	// hexadecimal and octal
-	prwriteln("hex number: {}", press::hex(859654));
-	prwriteln("uppercase hex number: 0x{}", press::HEX(859654));
-	prwriteln("octal number {}", press::oct(1455587));
+	prwriteln("hex number: {x}", 859654u);
+	prwriteln("hex number with 0-pad and width: {0x3}", 10u);
+	prwriteln("uppercase hex number: 0x{X}", 859654u);
+	prwriteln("octal number {o}", 1455587u);
 
 	// string literal and std::string
 	prwriteln("my name is {}", "Bob");

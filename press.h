@@ -140,6 +140,25 @@ namespace press
 				++bookmark;
 			}
 
+			// consume more flags
+			if(bookmark >= len)
+				return bookmark;
+			if(fmt[bookmark] == 'x')
+			{
+				s.hex = true;
+				++bookmark;
+			}
+			else if(fmt[bookmark] == 'X')
+			{
+				s.hex_upper = true;
+				++bookmark;
+			}
+			else if(fmt[bookmark] == 'o')
+			{
+				s.oct = true;
+				++bookmark;
+			}
+
 			// consume width
 			if(bookmark >= len)
 				return bookmark;
@@ -166,7 +185,17 @@ namespace press
 			return bookmark;
 		}
 
-		void reset(){ zero_pad = false; left_justify = false; width = -1; precision = -1; index = -1; }
+		void reset()
+		{
+			zero_pad = false;
+			left_justify = false;
+			hex = false;
+			hex_upper = false;
+			oct = false;
+			width = -1;
+			precision = -1;
+			index = -1;
+		}
 
 	private:
 		static signed char consume_number(const char *const fmt, int &bookmark, const int len)
@@ -188,6 +217,9 @@ namespace press
 		// flags
 		bool zero_pad;
 		bool left_justify;
+		bool hex;
+		bool hex_upper;
+		bool oct;
 
 		signed char width;
 		signed char precision;
@@ -238,17 +270,8 @@ namespace press
 		const int m_size;
 	};
 
-	class hex;
-	class HEX;
-	class oct;
-	class ptr;
 	class parameter
 	{
-		friend hex;
-		friend HEX;
-		friend oct;
-		friend ptr;
-
 	public:
 		enum class ptype : unsigned char
 		{
@@ -479,8 +502,21 @@ namespace press
 
 		void convert_uint(writer &buffer, const settings &format) const
 		{
-			char string[20];
-			const int written = stringify_int(string, object.ulli);
+			char string[22]; // big enough to store longest representation for decimal, hex, and octal for unsigned long long int
+
+			int written = 0;
+			if(format.hex || format.hex_upper)
+			{
+				written = stringify_int_hex(string, object.ulli, format.hex_upper);
+			}
+			else if(format.oct)
+			{
+				written = stringify_int_oct(string, object.ulli);
+			}
+			else
+			{
+				written = stringify_int(string, object.ulli);
+			}
 
 			int width = wi == -1 ? (format.width >= 0 ? format.width : 0) : wi;
 			int max = std::max(written, width);
@@ -565,39 +601,6 @@ namespace press
 		}object;
 		signed char wi; // width
 		signed char pr; // precision
-	};
-
-	struct hex
-	{
-		hex(unsigned long long i)
-		{
-			const unsigned written = parameter::stringify_int_hex(m_buffer, i, false);
-			m_buffer[written] = 0;
-		}
-
-		char m_buffer[17];
-	};
-
-	struct HEX
-	{
-		HEX(unsigned long long i)
-		{
-			const unsigned written = parameter::stringify_int_hex(m_buffer, i, true);
-			m_buffer[written] = 0;
-		}
-
-		char m_buffer[17];
-	};
-
-	struct oct
-	{
-		oct(unsigned long long i)
-		{
-			const unsigned written = parameter::stringify_int_oct(m_buffer, i);
-			m_buffer[written] = 0;
-		}
-
-		char m_buffer[23];
 	};
 
 	constexpr bool is_literal_brace(const char *fmt, int len, int index)
@@ -738,9 +741,6 @@ namespace press
 	inline void add(const char *x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
 	inline void add(const bool x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x, w, p); }
 	inline void add(const std::string &x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x.c_str(), w, p); }
-	inline void add(const hex &x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
-	inline void add(const HEX &x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
-	inline void add(const oct &x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
 
 	// forward to another add overload
 	inline void add(const unsigned long x, parameter *array, int &index, signed char w = -1, signed char p = -1) { add((unsigned long long)x, array, index, w, p); }

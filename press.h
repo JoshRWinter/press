@@ -5,6 +5,7 @@
 #include <memory>
 #include <algorithm>
 #include <string>
+#include <tuple>
 
 #include <string.h>
 #include <ctype.h>

@@ -53,7 +53,7 @@ int main()
 	prwriteln("this char: {}", 'M');
 
 	// void pointer
-	prwriteln("void pointer 0x{}", press::ptr((void*)main));
+	prwriteln("void pointer 0x{}", main);
 
 	// write to a buffer (like snprintf)
 	char cool[13];

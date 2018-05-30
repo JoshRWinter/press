@@ -258,6 +258,7 @@ namespace press
 			UNSIGNED_INT,
 			BOOLEAN_,
 			CHARACTER,
+			VOID_POINTER,
 			BUFFER,
 			CUSTOM
 		};
@@ -314,6 +315,14 @@ namespace press
 			object.c = c;
 		}
 
+		void init(const void *vp, const signed char w = -1, const signed char p = -1)
+		{
+			wi = w;
+			pr = p;
+			type = ptype::VOID_POINTER;
+			object.vp = vp;
+		}
+
 		void init(const char *s, const signed char w = -1, const signed char p = -1)
 		{
 			wi = w;
@@ -351,6 +360,9 @@ namespace press
 					break;
 				case ptype::BOOLEAN_:
 					convert_bool(buffer, format);
+					break;
+				case ptype::VOID_POINTER:
+					convert_voidp(buffer, format);
 					break;
 				case ptype::CUSTOM:
 					convert_custom(buffer, format);
@@ -506,6 +518,15 @@ namespace press
 					buffer.write(&pad, 1);
 		}
 
+		void convert_voidp(writer &buffer, const settings &format) const
+		{
+			char buf[16];
+			unsigned long long number = reinterpret_cast<uintptr_t>(object.vp);
+			const int written = parameter::stringify_int_hex(buf, number, false);
+
+			buffer.write(buf, written);
+		}
+
 		void convert_string(writer &buffer, const settings &format) const
 		{
 			const auto strlength = strlen(object.cstr);
@@ -537,6 +558,7 @@ namespace press
 			unsigned long long ulli;
 			double f64;
 			char c;
+			const void *vp;
 			bool b;
 			const char *cstr;
 			char rawbuf[sizeof(std::string)];
@@ -576,18 +598,6 @@ namespace press
 		}
 
 		char m_buffer[23];
-	};
-
-	struct ptr
-	{
-		ptr(const void *p)
-		{
-			unsigned long long number = reinterpret_cast<uintptr_t>(p);
-			const unsigned written = parameter::stringify_int_hex(m_buffer, number, false);
-			m_buffer[written] = 0;
-		}
-
-		char m_buffer[17];
 	};
 
 	constexpr bool is_literal_brace(const char *fmt, int len, int index)
@@ -694,9 +704,30 @@ namespace press
 		return "{UNKNOWN DATA TYPE}";
 	}
 
-	template <typename T> inline void add(const T &x, parameter *array, int &index)
+	template <typename T> struct is_pointer
 	{
-		array[index++].init(std::move(press::to_string(x)));
+		constexpr static bool value = std::is_pointer<T>::value || std::is_member_pointer<T>::value || std::is_member_object_pointer<T>::value || std::is_member_function_pointer<T>::value || std::is_function<typename std::remove_pointer<T>::type>::value;
+	};
+
+	// dummy primary template
+	template <typename T> inline void add_ptr(const typename std::enable_if<!is_pointer<T>::value, T>::type&, parameter*, int&, signed char, signed char) {}
+
+	// catch pointers
+	template <typename T> inline void add_ptr(const typename std::enable_if<is_pointer<T>::value, T>::type& vp, parameter *array, int &index, signed char w = -1, signed char p = -1)
+	{
+		array[index++].init((void*)vp, w, p);
+	}
+
+	template <typename T> inline void add(const T &x, parameter *array, int &index, signed char w = -1, signed char p = -1)
+	{
+		if(is_pointer<T>::value)
+		{
+			add_ptr<T>(x, array, index, w, p);
+		}
+		else
+		{
+			array[index++].init(std::move(press::to_string(x)));
+		}
 	}
 
 	// add the argument to the parameter array
@@ -710,7 +741,6 @@ namespace press
 	inline void add(const hex &x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
 	inline void add(const HEX &x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
 	inline void add(const oct &x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
-	inline void add(const ptr &x, parameter *array, int &index, signed char w = -1, signed char p = -1) { array[index++].init(x.m_buffer, w, p); }
 
 	// forward to another add overload
 	inline void add(const unsigned long x, parameter *array, int &index, signed char w = -1, signed char p = -1) { add((unsigned long long)x, array, index, w, p); }

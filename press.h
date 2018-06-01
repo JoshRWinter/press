@@ -14,27 +14,43 @@
 
 /* PRESS printing tool
 
-Press is a I/O tool for human-readable output using printf style syntax, but with extra type
+Press is a printing tool for human-readable output using printf style syntax, but with extra type
 safety and convenience.
 
-- Format specifiers are denoted by {}, with optional arguments inside the braces
-- Arguments inside the braces are simply forwarded to printf, specifically the sections:
-	- Flag characters
-	- Field width
-	- Precision
-  There is no need for the "Length modifier" or "Conversion specifier" sections, as these
-  are deduced automatically
-- Passing std::string& or char* is supported for strings
-- If you need to write a literal "{}" in the string, only the first '{' needs to be escaped
-- To escape a literal '{', enclose it in {} e.g. press::write("{{}") prints "{"
+FEATURES:
+- User-defined types
+- Positional specifiers
+- Printf-like syntax
+- Runtime width and precision
 
-examples
-1. press::write("the year is {}", 2018); // "the year is 2018"
-2. press::write("the year is {5}", 2018); // "the year is  2018"
-3. press::write("the year is {05}", 2018); // "the year is 02018"
-4. press::write("the year is {-5}", 2018); // "the year is 2018 "
-5. press::write("pi is {.4}", 3.1415926); // "pi is 3.1416"
-6. press::write("my name is {}", "Bob"); // "my name is Bob" (the string argument can be std::string or char*)
+How to use
+- Simply include this header "press.h" and make sure to compile your project with at least c++11
+- Formatting specifiers are "{}" with optional flags inside the brackets
+- To use press with a custom type, simply overload the "std::string press::to_string(const Myclass&)" function, taking a const-reference
+  to your class, and return a std::string
+
+Formatting parameters
+Optional formatting parameters are accepted inside the {} brackets IN THIS ORDER:
+	1) Padding flags: zero or one of the following symbols to control how padding is applied
+		0	The integer parameter should be zero padded, if padding is to be applied
+		-	The integer parameter should be left-justified
+
+	2) Representation flags: zero or one of the following symbols to control representation, for unsigned integers
+		x	The unsigned integer parameter should be displayed in base 16
+		X	Same as above, but with uppercase ABCDEF
+		o (oh) The unsigned integer parameter should be displayed in base 8
+
+	2) An optional width parameter (positive integer), that specifies the minimum number of characters to be printed for integers
+
+	3) An optional precision parameter (positive integer), preceded with a . (dot), that specifies the number of digits after the decimal for floats,
+	   and the number of characters to be printed for a string
+
+	4) An optional positional specifier (positive non-zero integer), preceded with an @ (at sign)
+
+Runtime width and precision
+Instead of specifying width and/or precision in the format string, you may specify at runtime.
+Runtime-specified width and/or precision overrides any specification in the format string
+Surround the parameter with a call to "press::set_width(param, width)", "press::set_prec(param, precision)", or "press::set_width_precision(param, width, precision)"
 
 */
 

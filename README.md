@@ -2,7 +2,7 @@ PRESS printing tool
 
 Press is a printing tool for human-readable output using printf style syntax, but with extra type safety and convenience.
 
-#FEATURES:
+# FEATURES:
 - User-defined types
 - Positional specifiers
 - Printf-like syntax
@@ -12,12 +12,12 @@ Press is a printing tool for human-readable output using printf style syntax, bu
 	- Except for the std::string returned from your overloaded function for a custom type
 	- If more than 16 parameters are passed to the printing function, a memory allocation must be made to accomodate all of the parameters
 
-#How to use
+# How to use
 - Simply include this header "press.h" and make sure to compile your project with at least c++11
 - Formatting specifiers are "{}" with optional flags inside the brackets
 - To use press with a custom type, simply overload the `std::string press::to_string(const Myclass&)` function, taking a const-reference to your class, and return a std::string
 
-##Formatting parameters
+## Formatting parameters
 Optional formatting parameters are accepted inside the {} brackets IN THIS ORDER:
 
 	1) Padding flags: zero or one of the following symbols to control how padding is applied
@@ -36,7 +36,7 @@ Optional formatting parameters are accepted inside the {} brackets IN THIS ORDER
 
 	4) An optional positional specifier (positive non-zero integer), preceded with an @ (at sign)
 
-##Runtime width and precision
+## Runtime width and precision
 Instead of specifying width and/or precision in the format string, you may specify at runtime.  
 Runtime-specified width and/or precision overrides any specification in the format string  
 Surround the parameter with a call to  

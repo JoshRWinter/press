@@ -22,6 +22,10 @@ FEATURES:
 - Positional specifiers
 - Printf-like syntax
 - Runtime width and precision
+- Small implementation (less than 1k lines), in a single header file
+- Fast, also makes 0 memory allocations
+	- Except for the std::string returned from your overloaded function for a custom type)
+	- If more than 16 parameters are passed to the printing function, a memory allocation must be made to accomodate all of the parameters
 
 How to use
 - Simply include this header "press.h" and make sure to compile your project with at least c++11
@@ -51,6 +55,7 @@ Runtime width and precision
 Instead of specifying width and/or precision in the format string, you may specify at runtime.
 Runtime-specified width and/or precision overrides any specification in the format string
 Surround the parameter with a call to "press::set_width(param, width)", "press::set_prec(param, precision)", or "press::set_width_precision(param, width, precision)"
+E.G. `press::write("this integer has runtime specified width: {}\n", press::set_width(myinteger, 2))
 
 */
 

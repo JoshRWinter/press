@@ -264,43 +264,51 @@ namespace press
 	class writer
 	{
 	public:
+		static constexpr int WRITER_BUFFER_SIZE = 1024;
+
 		writer(print_target target, FILE *fp, char *const user_buffer, const int user_buffer_size)
 			: m_target(target)
 			, m_fp(fp)
-			, m_buffer(user_buffer)
+			, m_buffer(user_buffer == NULL ? automatic_buffer : user_buffer)
 			, m_bookmark(0)
-			, m_size(user_buffer_size)
+			, m_size(user_buffer == NULL ? WRITER_BUFFER_SIZE : user_buffer_size)
 		{}
 		writer(const writer&) = delete;
 		writer(writer&&) = delete;
 		~writer()
 		{
-			if(m_target == print_target::BUFFER)
+			if(m_target == print_target::BUFFER && m_size > 0)
 				m_buffer[m_bookmark >= m_size ? m_size - 1 : m_bookmark] = 0;
+			else
+				flush();
 		}
 
 		inline void write(const char *const buf, const int count)
 		{
-			switch(m_target)
-			{
-				case print_target::FILE_P:
-					fwrite(buf, 1, count, m_fp);
-					break;
-				case print_target::BUFFER:
-				{
-					const int written = std::min(m_size - m_bookmark, count);
+			const int written = std::min(m_size - m_bookmark, count);
 
-					memcpy(m_buffer + m_bookmark, buf, written);
-					m_bookmark += written;
-					break;
-				}
-			}
+			memcpy(m_buffer + m_bookmark, buf, written);
+			m_bookmark += written;
+
+			if(written < count && flush())
+				write(buf + written, count - written);
 		}
 
 	private:
+		inline bool flush()
+		{
+			if(m_target == print_target::BUFFER)
+				return false;
+
+			fwrite(m_buffer, 1, m_bookmark, m_fp);
+			m_bookmark = 0;
+			return true;
+		}
+
 		const print_target m_target;
 		FILE *const m_fp;
 		char *const m_buffer;
+		char automatic_buffer[WRITER_BUFFER_SIZE];
 		int m_bookmark; // first unwritten byte
 		const int m_size;
 	};

@@ -23,12 +23,12 @@ Optional formatting parameters are accepted inside the {} brackets IN THIS ORDER
 1) Sign flag: optional `' '` (space) when positive signed integers should be printed with a leading space
 
 2) Padding flags: zero or one of the following symbols to control how padding is applied  
-	0	The integer parameter should be zero padded, if padding is to be applied
+	0	The integer parameter should be zero padded, if padding is to be applied  
 	'-' (dash) The integer parameter should be left-justified
 
 3) Representation flags: zero or one of the following symbols to control representation, for unsigned integers  
-	x	The unsigned integer parameter should be displayed in base 16
-	X	Same as above, but with uppercase ABCDEF
+	x	The unsigned integer parameter should be displayed in base 16  
+	X	Same as above, but with uppercase ABCDEF  
 	o (oh) The unsigned integer parameter should be displayed in base 8
 
 4) An optional width parameter (positive integer), that specifies the minimum number of characters to be printed for integers

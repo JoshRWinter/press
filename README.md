@@ -20,27 +20,29 @@ Press is a printing tool for human-readable output using printf style syntax, bu
 ## Formatting parameters
 Optional formatting parameters are accepted inside the {} brackets IN THIS ORDER:
 
-	1) Padding flags: zero or one of the following symbols to control how padding is applied
-		0	The integer parameter should be zero padded, if padding is to be applied
-		-	The integer parameter should be left-justified
+1) Sign flag: optional ' ' (space) when positive signed integers should be printed with a leading space
 
-	2) Representation flags: zero or one of the following symbols to control representation, for unsigned integers
-		x	The unsigned integer parameter should be displayed in base 16
-		X	Same as above, but with uppercase ABCDEF
-		o (oh) The unsigned integer parameter should be displayed in base 8
+2) Padding flags: zero or one of the following symbols to control how padding is applied
+	0	The integer parameter should be zero padded, if padding is to be applied
+	-	The integer parameter should be left-justified
 
-	2) An optional width parameter (positive integer), that specifies the minimum number of characters to be printed for integers
+3) Representation flags: zero or one of the following symbols to control representation, for unsigned integers
+	x	The unsigned integer parameter should be displayed in base 16
+	X	Same as above, but with uppercase ABCDEF
+	o (oh) The unsigned integer parameter should be displayed in base 8
 
-	3) An optional precision parameter (positive integer), preceded with a . (dot), that specifies the number of digits after the decimal for floats,
-	   and the number of characters to be printed for a string
+4) An optional width parameter (positive integer), that specifies the minimum number of characters to be printed for integers
 
-	4) An optional positional specifier (positive non-zero integer), preceded with an @ (at sign)
+5) An optional precision parameter (positive integer), preceded with a . (dot), that specifies the number of digits after the decimal for floats,
+   and the number of characters to be printed for a string
+
+6) An optional positional specifier (positive non-zero integer), preceded with an @ (at sign)
 
 ## Runtime width and precision
-Instead of specifying width and/or precision in the format string, you may specify at runtime.  
-Runtime-specified width and/or precision overrides any specification in the format string  
-Surround the parameter with a call to  
-`press::set_width(param, width)`  
-`press::set_prec(param, precision)`  
-`press::set_width_precision(param, width, precision)`  
+Instead of specifying width and/or precision in the format string, you may specify at runtime.
+Runtime-specified width and/or precision overrides any specification in the format string
+Surround the parameter with a call to
+`press::set_width(param, width)`
+`press::set_prec(param, precision)`
+`press::set_width_precision(param, width, precision)`
 E.G. `press::write("this integer has runtime specified width: {}\n", press::set_width(myinteger, 2))`

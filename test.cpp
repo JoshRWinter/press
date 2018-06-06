@@ -21,6 +21,7 @@ int main()
 {
 	// integers and width/padding
 	prwriteln("the year is {}", 2018);
+	prwriteln("the year is { }", 2018);
 	prwriteln("the year is {5}", 2018);
 	prwriteln("the year is {05}", 2018);
 	prwriteln("the year is \"{-5}\"", 2018);

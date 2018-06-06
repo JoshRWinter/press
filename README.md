@@ -20,7 +20,7 @@ Press is a printing tool for human-readable output using printf style syntax, bu
 ## Formatting parameters
 Optional formatting parameters are accepted inside the {} brackets IN THIS ORDER:
 
-1) Sign flag: optional ' ' (space) when positive signed integers should be printed with a leading space
+1) Sign flag: optional `' '` (space) when positive signed integers should be printed with a leading space
 
 2) Padding flags: zero or one of the following symbols to control how padding is applied
 	0	The integer parameter should be zero padded, if padding is to be applied

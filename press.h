@@ -37,21 +37,23 @@ Formatting parameters
 Optional formatting parameters are accepted inside the {} brackets IN THIS ORDER:
 	1) Sign flag: optional ' ' (space) when positive signed integers should be printed with a leading space
 
-	2) Padding flags: zero or one of the following symbols to control how padding is applied
+	2) Separator flag: optional ',' (comma) or ''' (apostrophe) for thousands separators as commas or dots, respectively
+
+	3) Padding flags: zero or one of the following symbols to control how padding is applied
 		0	The integer parameter should be zero padded, if padding is to be applied
 		-	The integer parameter should be left-justified
 
-	3) Representation flags: zero or one of the following symbols to control representation, for unsigned integers
+	4) Representation flags: zero or one of the following symbols to control representation, for unsigned integers
 		x	The unsigned integer parameter should be displayed in base 16
 		X	Same as above, but with uppercase ABCDEF
 		o (oh) The unsigned integer parameter should be displayed in base 8
 
-	4) An optional width parameter (positive integer), that specifies the minimum number of characters to be printed for integers
+	5) An optional width parameter (positive integer), that specifies the minimum number of characters to be printed for integers
 
-	5) An optional precision parameter (positive integer), preceded with a . (dot), that specifies the number of digits after the decimal for floats,
+	6) An optional precision parameter (positive integer), preceded with a . (dot), that specifies the number of digits after the decimal for floats,
 	   and the number of characters to be printed for a string
 
-	6) An optional positional specifier (positive non-zero integer), preceded with an @ (at sign)
+	7) An optional positional specifier (positive non-zero integer), preceded with an @ (at sign)
 
 Runtime width and precision
 Instead of specifying width and/or precision in the format string, you may specify at runtime.
@@ -574,26 +576,57 @@ namespace press
 			else
 				written = stringify_int(string, number);
 
-			// calculate how many leading pad chars
+			// calculate width
 			int width = runtime_width == -1 ? (format.width >= 0 ? format.width - (format.leading_space && is_positive(number)) : 0) : runtime_width;
-			int needed = std::max(width, written); // how many pad chars are actually needed
+
+			// calculate how many thousands separaters are needed
+			int seps = 0;
+			if(format.thousands_sep != 0)
+			{
+				seps = (written % 3) == 0 ? (written / 3) - 1 : (written / 3);
+				width -= seps;
+			}
+
+			// more padding calculations
+			int needed = std::max(width, written); // how many chars will actually be written
 			const char pad = format.zero_pad ? '0' : ' ';
 
 			// write a leading space if requested
 			if(format.leading_space && is_positive(number))
 				buffer.write(" ", 1);
 
+			// determine if minus sign needs to be written before leading zeros
 			const bool negative_and_zero_pad = !is_positive(number) && format.zero_pad;
 			if(negative_and_zero_pad)
 				buffer.write(string, 1);
 
 			// apply leading pad chars
 			if(!format.left_justify)
+			{
 				for(int i = needed; i > written; --i)
+				{
 					buffer.write(&pad, 1);
+				}
+			}
 
 			// write the integer string
-			buffer.write(string + (int)negative_and_zero_pad, written - (int)negative_and_zero_pad);
+			if(seps == 0)
+				buffer.write(string + (int)negative_and_zero_pad, written - (int)negative_and_zero_pad);
+			else
+			{
+				int place = written % 3;
+				if(place != 0)
+				{
+					buffer.write(string, place);
+					buffer.write(&format.thousands_sep, 1);
+				}
+				for(; place < written; place += 3)
+				{
+					buffer.write(string + place, 3);
+					if(place < written - 3)
+						buffer.write(&format.thousands_sep, 1);
+				}
+			}
 
 			// apply trailing pad chars
 			if(format.left_justify)

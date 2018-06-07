@@ -22,7 +22,7 @@ Optional formatting parameters are accepted inside the {} brackets IN THIS ORDER
 
 1) Sign flag: optional `' '` (space) when positive signed integers should be printed with a leading space
 
-2) Separator flag: optional `,` (comma) or `'` (apostrophe) for thousands separators as commas or dots, respectively
+2) Separator flag: optional `,` (comma) for thousands separators as defined by your locale
 
 3) Padding flags: zero or one of the following symbols to control how padding is applied  
 	`0`	The integer parameter should be zero padded, if padding is to be applied  

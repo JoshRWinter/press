@@ -3,13 +3,12 @@
 
 #include <type_traits>
 #include <memory>
-#include <algorithm>
 #include <string>
 #include <tuple>
 
 #include <string.h>
-#include <ctype.h>
 #include <limits.h>
+#include <locale.h>
 #include <stdio.h>
 
 /* PRESS printing tool
@@ -37,7 +36,7 @@ Formatting parameters
 Optional formatting parameters are accepted inside the {} brackets IN THIS ORDER:
 	1) Sign flag: optional ' ' (space) when positive signed integers should be printed with a leading space
 
-	2) Separator flag: optional ',' (comma) or ''' (apostrophe) for thousands separators as commas or dots, respectively
+	2) Separator flag: optional ',' (comma) for thousands separators as defined by your locale
 
 	3) Padding flags: zero or one of the following symbols to control how padding is applied
 		0	The integer parameter should be zero padded, if padding is to be applied
@@ -164,9 +163,10 @@ namespace press
 			// consume separator flags
 			if(bookmark >= len)
 				return bookmark;
-			if(fmt[bookmark] == '\'' || fmt[bookmark] == ',')
+			if(fmt[bookmark] == ',')
 			{
-				s.thousands_sep = fmt[bookmark] == ',' ? ',' : '.';
+				const char sep = *localeconv()->decimal_point;
+				s.thousands_sep = sep == '.' ? ',' : (sep == ',' ? '.' : ',');
 				++bookmark;
 			}
 
@@ -175,7 +175,8 @@ namespace press
 				return bookmark;
 			if(fmt[bookmark] == '0')
 			{
-				s.zero_pad = true;
+				if(s.thousands_sep == 0)
+					s.zero_pad = true;
 				++bookmark;
 			}
 			else if(fmt[bookmark] == '-')
@@ -249,7 +250,7 @@ namespace press
 			unsigned char number = 0;
 			bool found = false;
 
-			while(bookmark < len && isdigit(fmt[bookmark]))
+			while(bookmark < len && fmt[bookmark] >= '0' && fmt[bookmark] <= '9')
 			{
 				found = true;
 				number *= 10;
@@ -602,12 +603,8 @@ namespace press
 
 			// apply leading pad chars
 			if(!format.left_justify)
-			{
 				for(int i = needed; i > written; --i)
-				{
 					buffer.write(&pad, 1);
-				}
-			}
 
 			// write the integer string
 			if(seps == 0)

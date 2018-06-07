@@ -40,10 +40,10 @@ Optional formatting parameters are accepted inside the {} brackets IN THIS ORDER
 7) An optional positional specifier (positive non-zero integer), preceded with an @ (at sign)
 
 ## Runtime width and precision
-Instead of specifying width and/or precision in the format string, you may specify at runtime.
-Runtime-specified width and/or precision overrides any specification in the format string
-Surround the parameter with a call to
-`press::set_width(param, width)`
-`press::set_prec(param, precision)`
-`press::set_width_precision(param, width, precision)`
+Instead of specifying width and/or precision in the format string, you may specify at runtime.  
+Runtime-specified width and/or precision overrides any specification in the format string  
+Surround the parameter with a call to  
+`press::set_width(param, width)`  
+`press::set_prec(param, precision)`  
+`press::set_width_precision(param, width, precision)`  
 E.G. `press::write("this integer has runtime specified width: {}\n", press::set_width(myinteger, 2))`

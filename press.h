@@ -159,6 +159,15 @@ namespace press
 				++bookmark;
 			}
 
+			// consume separator flags
+			if(bookmark >= len)
+				return bookmark;
+			if(fmt[bookmark] == '\'' || fmt[bookmark] == ',')
+			{
+				s.thousands_sep = fmt[bookmark] == ',' ? ',' : '.';
+				++bookmark;
+			}
+
 			// consume padding flags
 			if(bookmark >= len)
 				return bookmark;
@@ -229,6 +238,7 @@ namespace press
 			width = -1;
 			precision = -1;
 			index = -1;
+			thousands_sep = 0;
 		}
 
 	private:
@@ -259,6 +269,7 @@ namespace press
 		signed char width;
 		signed char precision;
 		signed char index; // starts at 1
+		char thousands_sep;
 	};
 
 	class writer
@@ -457,6 +468,16 @@ namespace press
 			}
 		}
 
+		static inline bool is_positive(unsigned long long)
+		{
+			return true;
+		}
+
+		static inline bool is_positive(long long i)
+		{
+			return i >= 0;
+		}
+
 		template <typename T> static int stringify_int(char *buffer, T i)
 		{
 			if(!std::is_integral<T>::value)
@@ -470,7 +491,7 @@ namespace press
 					memcpy(buffer, "-9223372036854775808", 20);
 					return 20;
 				}
-				negative = i < 0;
+				negative = !is_positive(i);
 				i = std::llabs(i);
 			}
 
@@ -535,6 +556,51 @@ namespace press
 			return place;
 		}
 
+		template <typename T> static void do_convert_integer(const typename std::enable_if<true, T>::type number, writer &buffer, const settings &format, int runtime_width)
+		{
+			char string[22]; // big enough to store largest number in base 8, 10, and 16 (no terminating char needed)
+
+			int written;
+			// stringify the integer
+			if(std::is_unsigned<T>::value)
+			{
+				if(format.hex || format.hex_upper)
+					written = stringify_int_hex(string, number, format.hex_upper);
+				else if(format.oct)
+					written = stringify_int_oct(string, number);
+				else
+					written = stringify_int(string, number);
+			}
+			else
+				written = stringify_int(string, number);
+
+			// calculate how many leading pad chars
+			int width = runtime_width == -1 ? (format.width >= 0 ? format.width - (format.leading_space && is_positive(number)) : 0) : runtime_width;
+			int needed = std::max(width, written); // how many pad chars are actually needed
+			const char pad = format.zero_pad ? '0' : ' ';
+
+			// write a leading space if requested
+			if(format.leading_space && is_positive(number))
+				buffer.write(" ", 1);
+
+			const bool negative_and_zero_pad = !is_positive(number) && format.zero_pad;
+			if(negative_and_zero_pad)
+				buffer.write(string, 1);
+
+			// apply leading pad chars
+			if(!format.left_justify)
+				for(int i = needed; i > written; --i)
+					buffer.write(&pad, 1);
+
+			// write the integer string
+			buffer.write(string + (int)negative_and_zero_pad, written - (int)negative_and_zero_pad);
+
+			// apply trailing pad chars
+			if(format.left_justify)
+				for(int i = needed; i > written; --i)
+					buffer.write(&pad, 1);
+		}
+
 		void convert_float64(writer &buffer, const settings &format) const
 		{
 			char buf[325];
@@ -545,59 +611,12 @@ namespace press
 
 		void convert_uint(writer &buffer, const settings &format) const
 		{
-			char string[22]; // big enough to store longest representation for decimal, hex, and octal for unsigned long long int
-
-			int written = 0;
-			if(format.hex || format.hex_upper)
-			{
-				written = stringify_int_hex(string, object.ulli, format.hex_upper);
-			}
-			else if(format.oct)
-			{
-				written = stringify_int_oct(string, object.ulli);
-			}
-			else
-			{
-				written = stringify_int(string, object.ulli);
-			}
-
-			int width = wi == -1 ? (format.width >= 0 ? format.width : 0) : wi;
-			int max = std::max(written, width);
-			const char pad = format.zero_pad ? '0' : ' ';
-
-			if(!format.left_justify)
-				for(int i = max; i > written; --i)
-					buffer.write(&pad, 1);
-
-			buffer.write(string, written);
-
-			const char space = ' ';
-			if(format.left_justify)
-				for(int i = max; i > written; --i)
-					buffer.write(&space, 1);
+			parameter::do_convert_integer<unsigned long long>(object.ulli, buffer, format, (int)wi);
 		}
 
 		void convert_int(writer &buffer, const settings &format) const
 		{
-			char string[20];
-			const int written = stringify_int(string, object.lli);
-
-			int width = wi == -1 ? (format.width >= 0 ? format.width - (format.leading_space == true && object.lli >= 0) : 0) : wi;
-			int max = std::max(written, width);
-			const char pad = format.zero_pad ? '0' : ' ';
-
-			if(format.leading_space && object.lli >= 0)
-				buffer.write(" ", 1);
-
-			if(!format.left_justify)
-				for(int i = max; i > written; --i)
-					buffer.write(&pad, 1);
-
-			buffer.write(string, written);
-
-			if(format.left_justify)
-				for(int i = max; i > written; --i)
-					buffer.write(&pad, 1);
+			parameter::do_convert_integer<long long>(object.lli, buffer, format, (int)wi);
 		}
 
 		void convert_voidp(writer &buffer, const settings &format) const

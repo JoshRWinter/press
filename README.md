@@ -9,6 +9,7 @@ Press is a printing tool for human-readable output using printf style syntax, bu
 - Small implementation (less than 1k lines), in a single header file
 - Fast, also makes 0 memory allocations
 	- Except for the std::string returned from your overloaded function for a custom type
+	- The press::swrite functions (print to a std::string) allocate memory
 	- If more than 16 parameters are passed to the printing function, a memory allocation must be made to accomodate all of the parameters
 
 # How to use

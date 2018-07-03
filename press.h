@@ -746,7 +746,8 @@ namespace press
 						: (count_specifiers(fmt, len, count + 1, find_partner(fmt, len, index + 1) + 1)))));
 	}
 
-	void printer(const char *const fmt, const parameter *const params, const int pack_size, const print_target target, FILE *fp, char *userbuffer, const int userbuffer_size)
+	struct printer_class{
+	static void printer(const char *const fmt, const parameter *const params, const int pack_size, const print_target target, FILE *fp, char *userbuffer, const int userbuffer_size)
 	{
 		const int fmt_len = strlen(fmt);
 		const int spec_count = count_specifiers(fmt, fmt_len);
@@ -795,7 +796,7 @@ namespace press
 
 		if(bookmark < fmt_len)
 			output.write(fmt + bookmark, fmt_len - bookmark);
-	}
+	}};
 
 	template <typename T> std::string to_string(const T&)
 	{
@@ -891,7 +892,7 @@ namespace press
 		#pragma GCC diagnostic pop
 		#endif
 
-		printer(fmt, storage, sizeof...(Ts), target, fp, userbuffer, userbuffer_size);
+		printer_class::printer(fmt, storage, sizeof...(Ts), target, fp, userbuffer, userbuffer_size);
 	}
 
 	template <typename... Ts> void write(const char *fmt, const Ts&... ts)

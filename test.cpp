@@ -17,8 +17,13 @@ namespace press
 
 #include "press.h"
 
+static void tests();
+
 int main()
 {
+	// run all the tests
+	tests();
+
 	// integers and width/padding
 	prwriteln("the year is {}", 2018);
 	prwriteln("the year is { }", 2018);
@@ -83,4 +88,45 @@ int main()
 	prwriteln("custom type: {}", mcc);
 
 	return 0;
+}
+
+static int number = 1;
+template <typename... Ts> static void check(const char *expected, const char *fmt, const Ts&... ts)
+{
+	const std::string got = press::swrite(fmt, ts...);
+	if(got != expected)
+	{
+		fprintf(stderr, "error!! expected \"%s\", got \"%s\"\n", expected, got.c_str());
+		exit(1);
+	}
+	else
+		fprintf(stderr, "check #%d passed (\"%s\")\n", number, got.c_str());
+
+	++number;
+}
+
+void tests()
+{
+	fprintf(stderr, "============== running tests ==============\n");
+
+	check("literal brace check: { {} coolio {}}}  {{ !", "literal brace check: {{} {{}} {} {{}}}}  {{}{{} !", "coolio");
+
+	// integer padding
+	check("integer: 42", "integer: {}", 42);
+	check("blank padded integer:   43", "blank padded integer: {4}", 43);
+	check("this (28    ) is a left justified padded integer", "this ({-6}) is a left justified padded integer", 28);
+	check("this (000000899) is a zero-padded number", "this ({09}) is a zero-padded number", 899);
+	check("this is a thousands separated number: 25,147,236", "this is a thousands separated number: {,}", 25147236);
+	check("this is a blank-padded and thousands separated number:    2,225,225", "this is a blank-padded and thousands separated number: {,12}", 2225225);
+	check("this is a left-justified and thousands separated number: 1,225,225,225       ", "this is a left-justified and thousands separated number: {,-20}", 1225225225);
+
+	// alternate bases
+	check("this right here (c) is a hexa-decimal number", "this right here ({x}) is a hexa-decimal number", 12u);
+	check("this right here (12) is an octal number", "this right here ({o}) is an octal number", 10u);
+
+	// strings
+	check("this is a string: coolio julio", "this is a string: {}", "coolio julio");
+	check("this is a std::string: coolio julio", "this is a std::string: {}", std::string("coolio julio"));
+
+	fprintf(stderr, "============== all tests passed ==============\n");
 }

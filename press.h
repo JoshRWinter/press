@@ -764,8 +764,41 @@ namespace press
 				params[index].convert(output, format_settings);
 		}
 
+		// print the "tail"
 		if(bookmark < fmt_len)
+		{
+			// look for literal brace patterns
+			for(;;)
+			{
+				int index = bookmark;
+				bool found = false;
+				while(index < fmt_len)
+				{
+					if(is_literal_brace(fmt, fmt_len, index))
+					{
+						found = true;
+						break;
+					}
+
+					++index;
+				}
+
+				if(!found)
+					break;
+
+				// print the text before the brace pattern
+				output.write(fmt + bookmark, index - bookmark);
+
+				// print a literal brace
+				const char brace = '{';
+				output.write(&brace, 1);
+
+				bookmark = index + 3;
+			}
+
+			// write the last little bit
 			output.write(fmt + bookmark, fmt_len - bookmark);
+		}
 	}};
 
 	template <typename T> std::string to_string(const T&)

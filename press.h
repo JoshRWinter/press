@@ -328,12 +328,12 @@ namespace press
 		}
 
 		const print_target m_target;
-		FILE *const m_fp;
-		char *const m_buffer;
-		std::string *m_stdstring;
-		char m_automatic_buffer[WRITER_BUFFER_SIZE + 1];
+		FILE *const m_fp; // optional file pointer
+		char *const m_buffer; // interface to either m_automatic_buffer or user provided buffer
+		std::string *m_stdstring; // optional std::string target
+		char m_automatic_buffer[WRITER_BUFFER_SIZE + 1]; // used by print_target::FILEP and STDSTRING
 		int m_bookmark; // first unwritten byte
-		const int m_size;
+		const int m_size; // sizeof buffer pointed to by m_buffer
 	};
 
 	class parameter

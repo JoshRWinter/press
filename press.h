@@ -739,7 +739,7 @@ namespace press
 			}
 
 			if(spec_begin >= fmt_len)
-				break;
+				return;
 
 			// print the "before" text
 			output.write(fmt + bookmark, spec_begin - bookmark);

@@ -68,7 +68,7 @@ E.G. `press::write("this integer has runtime specified width: {}\n", press::set_
 
 #define prwrite(fmt, ...) \
 	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
-	press::write_(press::print_target::FILE_P, stdout, NULL, 0u, fmt, ##__VA_ARGS__)
+	press::write_(press::print_target::FILE_P, stdout, NULL, NULL, 0u, fmt, ##__VA_ARGS__)
 
 #define prwriteln(fmt, ...) \
 	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
@@ -76,7 +76,7 @@ E.G. `press::write("this integer has runtime specified width: {}\n", press::set_
 
 #define prfwrite(fp, fmt, ...) \
 	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
-	press::write_(press::print_target::FILE_P, fp, NULL, 0u, fmt, ##__VA_ARGS__)
+	press::write_(press::print_target::FILE_P, fp, NULL, NULL, 0u, fmt, ##__VA_ARGS__)
 
 #define prfwriteln(fp, fmt, ...) \
 	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
@@ -84,7 +84,7 @@ E.G. `press::write("this integer has runtime specified width: {}\n", press::set_
 
 #define prbwrite(userbuffer, size, fmt, ...) \
 	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
-	press::write_(press::print_target::BUFFER, NULL, userbuffer, size, fmt, ##__VA_ARGS__)
+	press::write_(press::print_target::BUFFER, NULL, NULL, userbuffer, size, fmt, ##__VA_ARGS__)
 
 #define prbwriteln(userbuffer, size, fmt, ...) \
 	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
@@ -137,6 +137,7 @@ namespace press
 	enum class print_target
 	{
 		FILE_P,
+		STDSTRING,
 		BUFFER
 	};
 
@@ -280,10 +281,11 @@ namespace press
 	public:
 		static constexpr int WRITER_BUFFER_SIZE = 1024;
 
-		writer(print_target target, FILE *fp, char *const user_buffer, const int user_buffer_size)
+		writer(print_target target, FILE *fp, std::string *stdstr, char *const user_buffer, const int user_buffer_size)
 			: m_target(target)
 			, m_fp(fp)
-			, m_buffer(user_buffer == NULL ? automatic_buffer : user_buffer)
+			, m_buffer(user_buffer == NULL ? m_automatic_buffer : user_buffer)
+			, m_stdstring(stdstr)
 			, m_bookmark(0)
 			, m_size(user_buffer == NULL ? WRITER_BUFFER_SIZE : user_buffer_size)
 		{}
@@ -313,8 +315,14 @@ namespace press
 		{
 			if(m_target == print_target::BUFFER)
 				return false;
+			else if(m_target == print_target::STDSTRING)
+			{
+				m_buffer[m_bookmark] = 0;
+				m_stdstring->append(m_buffer);
+			}
+			else
+				fwrite(m_buffer, 1, m_bookmark, m_fp);
 
-			fwrite(m_buffer, 1, m_bookmark, m_fp);
 			m_bookmark = 0;
 			return true;
 		}
@@ -322,7 +330,8 @@ namespace press
 		const print_target m_target;
 		FILE *const m_fp;
 		char *const m_buffer;
-		char automatic_buffer[WRITER_BUFFER_SIZE];
+		std::string *m_stdstring;
+		char m_automatic_buffer[WRITER_BUFFER_SIZE + 1];
 		int m_bookmark; // first unwritten byte
 		const int m_size;
 	};
@@ -747,13 +756,13 @@ namespace press
 	}
 
 	struct printer_class{
-	static void printer(const char *const fmt, const parameter *const params, const int pack_size, const print_target target, FILE *fp, char *userbuffer, const int userbuffer_size)
+	static void printer(const char *const fmt, const parameter *const params, const int pack_size, const print_target target, FILE *fp, std::string *stdstring, char *userbuffer, const int userbuffer_size)
 	{
 		const int fmt_len = strlen(fmt);
 		const int spec_count = count_specifiers(fmt, fmt_len);
 
 		// buffering
-		writer output(target, fp, userbuffer, userbuffer_size);
+		writer output(target, fp, stdstring, userbuffer, userbuffer_size);
 
 		// begin printing
 		int bookmark = 0;
@@ -859,7 +868,7 @@ namespace press
 	// interfaces
 
 	const int DEFAULT_AUTO_SIZE = 10;
-	template <typename... Ts> inline void write_(print_target target, FILE *fp, char *userbuffer, int userbuffer_size, const char *fmt, const Ts&... ts)
+	template <typename... Ts> inline void write_(print_target target, FILE *fp, std::string *stdstring, char *userbuffer, int userbuffer_size, const char *fmt, const Ts&... ts)
 	{
 		parameter *storage;
 		std::unique_ptr<parameter[]> dynamic;
@@ -895,39 +904,39 @@ namespace press
 		#pragma GCC diagnostic pop
 		#endif
 
-		printer_class::printer(fmt, storage, sizeof...(Ts), target, fp, userbuffer, userbuffer_size);
+		printer_class::printer(fmt, storage, sizeof...(Ts), target, fp, stdstring, userbuffer, userbuffer_size);
 	}
 
 	template <typename... Ts> void write(const char *fmt, const Ts&... ts)
 	{
-		write_(print_target::FILE_P, stdout, NULL, 0, fmt, ts...);
+		write_(print_target::FILE_P, stdout, NULL, NULL, 0, fmt, ts...);
 	}
 
 	template <typename... Ts> void writeln(const char *fmt, const Ts&... ts)
 	{
-		write_(print_target::FILE_P, stdout, NULL, 0, fmt, ts...);
+		write_(print_target::FILE_P, stdout, NULL, NULL, 0, fmt, ts...);
 		puts("");
 	}
 
 	template <typename... Ts> void fwrite(FILE *fp, const char *fmt, const Ts&... ts)
 	{
-		write_(print_target::FILE_P, fp, NULL, 0, fmt, ts...);
+		write_(print_target::FILE_P, fp, NULL, NULL, 0, fmt, ts...);
 	}
 
 	template <typename... Ts> void fwriteln(FILE *fp, const char *fmt, const Ts&... ts)
 	{
-		write_(print_target::FILE_P, fp, NULL, 0, fmt, ts...);
+		write_(print_target::FILE_P, fp, NULL, NULL, 0, fmt, ts...);
 		fputs("", fp);
 	}
 
 	template <typename... Ts> void bwrite(char *userbuffer, int userbuffer_size, const char *fmt, const Ts&... ts)
 	{
-		write_(print_target::BUFFER, NULL, userbuffer, userbuffer_size, fmt, ts...);
+		write_(print_target::BUFFER, NULL, NULL, userbuffer, userbuffer_size, fmt, ts...);
 	}
 
 	template <typename... Ts> void bwriteln(char *userbuffer, int userbuffer_size, const char *fmt, const Ts&... ts)
 	{
-		write_(print_target::BUFFER, NULL, userbuffer, userbuffer_size, fmt, ts...);
+		write_(print_target::BUFFER, NULL, NULL, userbuffer, userbuffer_size, fmt, ts...);
 		if(userbuffer_size > 0)
 		{
 			const int len = strlen(userbuffer);
@@ -937,6 +946,23 @@ namespace press
 				userbuffer[len + 1] = 0;
 			}
 		}
+	}
+
+	template <typename... Ts> std::string swrite(const char *fmt, const Ts&... ts)
+	{
+		std::string output;
+		write_(print_target::STDSTRING, NULL, &output, NULL, 0, fmt, ts...);
+
+		return output;
+	}
+
+	template <typename... Ts> std::string swriteln(const char *fmt, const Ts&... ts)
+	{
+		std::string output;
+		write_(print_target::STDSTRING, NULL, &output, NULL, 0, fmt, ts...);
+		output.push_back('\n');
+
+		return output;
 	}
 }
 

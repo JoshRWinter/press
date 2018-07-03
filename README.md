@@ -5,7 +5,6 @@ Press is a printing tool for human-readable output using printf style syntax, bu
 # FEATURES:
 - User-defined types
 - Positional specifiers
-- Printf-like syntax
 - Runtime width and precision
 - Small implementation (less than 1k lines), in a single header file
 - Fast, also makes 0 memory allocations

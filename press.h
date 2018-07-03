@@ -771,6 +771,9 @@ namespace press
 				}
 			}
 
+			if(spec_begin >= fmt_len)
+				break;
+
 			// print the "before" text
 			output.write(fmt + bookmark, spec_begin - bookmark);
 			if(is_literal_brace(fmt, fmt_len, spec_begin))

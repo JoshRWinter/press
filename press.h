@@ -914,7 +914,8 @@ namespace press
 	template <typename... Ts> void writeln(const char *fmt, const Ts&... ts)
 	{
 		write_(print_target::FILE_P, stdout, NULL, NULL, 0, fmt, ts...);
-		puts("");
+		const char newline = '\n';
+		fwrite(&newline, 1, 1, stdout);
 	}
 
 	template <typename... Ts> void fwrite(FILE *fp, const char *fmt, const Ts&... ts)
@@ -925,7 +926,8 @@ namespace press
 	template <typename... Ts> void fwriteln(FILE *fp, const char *fmt, const Ts&... ts)
 	{
 		write_(print_target::FILE_P, fp, NULL, NULL, 0, fmt, ts...);
-		fputs("", fp);
+		const char newline = '\n';
+		fwrite(&newline, 1, 1, fp);
 	}
 
 	template <typename... Ts> void bwrite(char *userbuffer, int userbuffer_size, const char *fmt, const Ts&... ts)

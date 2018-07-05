@@ -94,6 +94,9 @@ int main()
 	press::writeln("not enough params {} {} {} {}", 33);
 	press::writeln("bad positional specifiers {@0} {@33}", 33, 33);
 	press::writeln("malformed specifiers {hello} {coolio julio}", 33, 33);
+
+	press::fwriteln(stderr, "hello");
+	press::fwriteln(stderr, "hello");
 	return 0;
 }
 

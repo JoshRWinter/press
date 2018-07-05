@@ -624,7 +624,7 @@ namespace press
 			parameter::do_convert_integer<long long>(object.lli, buffer, format, (int)wi);
 		}
 
-		void convert_voidp(writer &buffer, const settings &format) const
+		void convert_voidp(writer &buffer, const settings&) const
 		{
 			char buf[16];
 			unsigned long long number = reinterpret_cast<uintptr_t>(object.vp);
@@ -640,18 +640,18 @@ namespace press
 			buffer.write(object.cstr, len);
 		}
 
-		void convert_bool(writer &buffer, const settings &format) const
+		void convert_bool(writer &buffer, const settings&) const
 		{
 			buffer.write(object.b ? "true" : "false", object.b ? 4 : 5);
 		}
 
-		void convert_character(writer &buffer, const settings &format) const
+		void convert_character(writer &buffer, const settings&) const
 		{
 			char c = object.c;
 			buffer.write(&c, 1);
 		}
 
-		void convert_custom(writer &buffer, const settings &format) const
+		void convert_custom(writer &buffer, const settings&) const
 		{
 			const std::string *s = (const std::string*)object.rawbuf;
 			buffer.write(s->c_str(), s->length());

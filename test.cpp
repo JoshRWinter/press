@@ -119,6 +119,7 @@ void tests()
 	check("this is a thousands separated number: 25,147,236", "this is a thousands separated number: {,}", 25147236);
 	check("this is a blank-padded and thousands separated number:    2,225,225", "this is a blank-padded and thousands separated number: {,12}", 2225225);
 	check("this is a left-justified and thousands separated number: 1,225,225,225       ", "this is a left-justified and thousands separated number: {,-20}", 1225225225);
+	check("this signed integer has a blank space in front of it:  44 ", "this signed integer has a blank space in front of it: { -4}", 44);
 
 	// alternate bases
 	check("this right here (c) is a hexa-decimal number", "this right here ({x}) is a hexa-decimal number", 12u);

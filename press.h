@@ -48,6 +48,14 @@ refer to README.md to read about features and interfaces
 	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
 	press::bwriteln(userbuffer, size, fmt, ##__VA_ARGS__)
 
+#define prswrite(fmt, ...) \
+	press::swrite(fmt, ##__VA_ARGS__); \
+	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value);
+
+#define prswriteln(fmt, ...) \
+	press::swriteln(fmt, ##__VA_ARGS__); \
+	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value);
+
 namespace press
 {
 	constexpr int string_length(const char *s, int len = 0)

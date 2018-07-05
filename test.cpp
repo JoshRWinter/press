@@ -64,7 +64,7 @@ int main()
 	prwriteln("void pointer 0x{}", main);
 
 	// write to a std::string
-	const std::string stdstr = press::swriteln("{}, some more numbers {}", 3+9, 32);
+	const std::string stdstr = prswriteln("{}, some more numbers {}", 3+9, 32);
 	press::write("std::string: {}", stdstr);
 
 	// write to a buffer (like snprintf)

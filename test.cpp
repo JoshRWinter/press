@@ -87,6 +87,13 @@ int main()
 	my_custom_class mcc;
 	prwriteln("custom type: {}", mcc);
 
+	// these examples are deliberately malformed to demonstrate robustness
+	press::writeln("unbalanced brackets {{ {{ {{");
+	press::writeln("unbalanced brackets { {}", 33);
+	press::writeln("unbalanced brackets {");
+	press::writeln("not enough params {} {} {} {}", 33);
+	press::writeln("bad positional specifiers {@0} {@33}", 33, 33);
+	press::writeln("malformed specifiers {hello} {coolio julio}", 33, 33);
 	return 0;
 }
 

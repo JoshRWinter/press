@@ -47,3 +47,6 @@ Surround the parameter with a call to
 `press::set_prec(param, precision)`  
 `press::set_width_precision(param, width, precision)`  
 E.G. `press::write("this integer has runtime specified width: {}\n", press::set_width(myinteger, 2))`
+
+## Literal braces
+Enclosing an opening brace within braces will print a single opening brace (e.g. `"{{}"`). Only opening braces need to be escaped in this manner, closing braces do not.

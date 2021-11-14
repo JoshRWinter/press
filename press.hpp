@@ -325,7 +325,7 @@ namespace press
 			if(type == Type::CUSTOM)
 			{
 				typedef std::string sstring;
-				sstring *s = (sstring*)object.rawbuf;
+				sstring *s = (sstring*)&object.raw;
 				s->~sstring();
 			}
 		}
@@ -391,7 +391,7 @@ namespace press
 			width = w;
 			precision = p;
 			type = Type::CUSTOM;
-			new (object.rawbuf) std::string(std::move(str));
+			new (&object.raw) std::string(std::move(str));
 		}
 
 		void convert(Writer &buffer, const Format &format) const
@@ -653,7 +653,7 @@ namespace press
 
 		void convert_custom(Writer &buffer, const Format&) const
 		{
-			const std::string *s = (const std::string*)object.rawbuf;
+			const std::string *s = (const std::string*)&object.raw;
 			buffer.write(s->c_str(), s->length());
 		}
 
@@ -667,7 +667,7 @@ namespace press
 			const void *vp;
 			bool b;
 			const char *cstr;
-			char rawbuf[sizeof(std::string)];
+			std::aligned_storage<sizeof(std::string), alignof(std::string)>::type raw;
 		} object;
 		signed char width;
 		signed char precision;

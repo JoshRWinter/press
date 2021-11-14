@@ -24,36 +24,36 @@ refer to README.md to read about features and interfaces
 	static_assert(press::is_balanced(fmt, press::string_length(fmt)), "press: specifier brackets are not balanced!"); \
 	static_assert(press::count_specifiers(fmt, press::string_length(fmt)) >= count, "press: too many parameters!")
 
-#define prwrite(fmt, ...) \
+#define prprint(fmt, ...) \
 	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
 	press::impl::write(press::PrintTarget::FILE_P, stdout, NULL, NULL, 0u, fmt, ##__VA_ARGS__)
 
-#define prwriteln(fmt, ...) \
+#define prprintln(fmt, ...) \
 	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
-	press::writeln(fmt, ##__VA_ARGS__)
+	press::println(fmt, ##__VA_ARGS__)
 
-#define prfwrite(fp, fmt, ...) \
+#define prfprint(fp, fmt, ...) \
 	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
 	press::impl::write(press::PrintTarget::FILE_P, fp, NULL, NULL, 0u, fmt, ##__VA_ARGS__)
 
-#define prfwriteln(fp, fmt, ...) \
+#define prfprintln(fp, fmt, ...) \
 	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
-	press::fwriteln(fp, fmt, ##__VA_ARGS__)
+	press::fprintln(fp, fmt, ##__VA_ARGS__)
 
-#define prbwrite(userbuffer, size, fmt, ...) \
+#define prbprint(userbuffer, size, fmt, ...) \
 	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
 	press::impl::write(press::PrintTarget::BUFFER, NULL, NULL, userbuffer, size, fmt, ##__VA_ARGS__)
 
-#define prbwriteln(userbuffer, size, fmt, ...) \
+#define prbprintln(userbuffer, size, fmt, ...) \
 	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value); \
-	press::bwriteln(userbuffer, size, fmt, ##__VA_ARGS__)
+	press::bprintln(userbuffer, size, fmt, ##__VA_ARGS__)
 
-#define prswrite(fmt, ...) \
-	press::swrite(fmt, ##__VA_ARGS__); \
+#define prsprint(fmt, ...) \
+	press::sprint(fmt, ##__VA_ARGS__); \
 	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value);
 
-#define prswriteln(fmt, ...) \
-	press::swriteln(fmt, ##__VA_ARGS__); \
+#define prsprintln(fmt, ...) \
+	press::sprintln(fmt, ##__VA_ARGS__); \
 	pressfmtcheck(fmt, std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value);
 
 namespace press
@@ -534,7 +534,7 @@ namespace press
 			return place;
 		}
 
-		template <typename T> static void do_convert_integer(const typename std::enable_if<true, T>::type number, Writer &buffer, const Format &format, int runtime_width)
+		template <typename T> static void do_convert_integer(const T number, Writer &buffer, const Format &format, int runtime_width)
 		{
 			char string[22]; // big enough to store largest number in base 8, 10, and 16 (no terminating char needed)
 
@@ -906,36 +906,36 @@ namespace press
 		impl::printer(fmt, storage, sizeof...(Ts), target, fp, stdstring, userbuffer, userbuffer_size);
 	}}
 
-	template <typename... Ts> void write(const char *fmt, const Ts&... ts)
+	template <typename... Ts> void print(const char *fmt, const Ts&... ts)
 	{
 		impl::write(PrintTarget::FILE_P, stdout, NULL, NULL, 0, fmt, ts...);
 	}
 
-	template <typename... Ts> void writeln(const char *fmt, const Ts&... ts)
+	template <typename... Ts> void println(const char *fmt, const Ts&... ts)
 	{
 		impl::write(PrintTarget::FILE_P, stdout, NULL, NULL, 0, fmt, ts...);
 		const char newline = '\n';
 		fwrite(&newline, 1, 1, stdout);
 	}
 
-	template <typename... Ts> void fwrite(FILE *fp, const char *fmt, const Ts&... ts)
+	template <typename... Ts> void fprint(FILE *fp, const char *fmt, const Ts&... ts)
 	{
 		impl::write(PrintTarget::FILE_P, fp, NULL, NULL, 0, fmt, ts...);
 	}
 
-	template <typename... Ts> void fwriteln(FILE *fp, const char *fmt, const Ts&... ts)
+	template <typename... Ts> void fprintln(FILE *fp, const char *fmt, const Ts&... ts)
 	{
 		impl::write(PrintTarget::FILE_P, fp, NULL, NULL, 0, fmt, ts...);
 		const char newline = '\n';
 		fwrite(&newline, 1, 1, fp);
 	}
 
-	template <typename... Ts> void bwrite(char *userbuffer, int userbuffer_size, const char *fmt, const Ts&... ts)
+	template <typename... Ts> void bprint(char *userbuffer, int userbuffer_size, const char *fmt, const Ts&... ts)
 	{
 		impl::write(PrintTarget::BUFFER, NULL, NULL, userbuffer, userbuffer_size, fmt, ts...);
 	}
 
-	template <typename... Ts> void bwriteln(char *userbuffer, int userbuffer_size, const char *fmt, const Ts&... ts)
+	template <typename... Ts> void bprintln(char *userbuffer, int userbuffer_size, const char *fmt, const Ts&... ts)
 	{
 		impl::write(PrintTarget::BUFFER, NULL, NULL, userbuffer, userbuffer_size, fmt, ts...);
 		if(userbuffer_size > 0)
@@ -949,7 +949,7 @@ namespace press
 		}
 	}
 
-	template <typename... Ts> std::string swrite(const char *fmt, const Ts&... ts)
+	template <typename... Ts> std::string sprint(const char *fmt, const Ts&... ts)
 	{
 		std::string output;
 		impl::write(PrintTarget::STDSTRING, NULL, &output, NULL, 0, fmt, ts...);
@@ -957,7 +957,7 @@ namespace press
 		return output;
 	}
 
-	template <typename... Ts> std::string swriteln(const char *fmt, const Ts&... ts)
+	template <typename... Ts> std::string sprintln(const char *fmt, const Ts&... ts)
 	{
 		std::string output;
 		impl::write(PrintTarget::STDSTRING, NULL, &output, NULL, 0, fmt, ts...);

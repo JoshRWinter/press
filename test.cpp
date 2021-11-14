@@ -26,85 +26,85 @@ int main()
 	tests();
 
 	// integers and width/padding
-	prwriteln("the year is {}", 2018);
-	prwriteln("the year is { }", 2018);
-	prwriteln("the year is {5}", 2018);
-	prwriteln("the year is {05}", 2018);
-	prwriteln("the year is {,}", 2018);
-	prwriteln("the year is \"{-5}\"", 2018);
+	prprintln("the year is {}", 2018);
+	prprintln("the year is { }", 2018);
+	prprintln("the year is {5}", 2018);
+	prprintln("the year is {05}", 2018);
+	prprintln("the year is {,}", 2018);
+	prprintln("the year is \"{-5}\"", 2018);
 
 	// runtime width
-	prwriteln("the year is {0}", press::set_width(2018, 10));
+	prprintln("the year is {0}", press::set_width(2018, 10));
 
 	// float
-	prwriteln("pi is {.4}", 3.1415926);
+	prprintln("pi is {.4}", 3.1415926);
 
 	// float with runtime precision
-	prwriteln("pi is {}", press::set_prec(3.1415926, 2));
+	prprintln("pi is {}", press::set_prec(3.1415926, 2));
 
 	// hexadecimal and octal
-	prwriteln("hex number: {x}", 859654u);
-	prwriteln("hex number with 0-pad and width: {0x3}", 10u);
-	prwriteln("uppercase hex number: 0x{X}", 859654u);
-	prwriteln("octal number {o}", 1455587u);
+	prprintln("hex number: {x}", 859654u);
+	prprintln("hex number with 0-pad and width: {0x3}", 10u);
+	prprintln("uppercase hex number: 0x{X}", 859654u);
+	prprintln("octal number {o}", 1455587u);
 
 	// string literal and std::string
-	prwriteln("my name is {}", "Bob");
-	prwriteln("std::string: {}", std::string("hello"));
+	prprintln("my name is {}", "Bob");
+	prprintln("std::string: {}", std::string("hello"));
 
 	// limit printed characters
-	prwriteln("my name is {.3}", "sam sampson");
+	prprintln("my name is {.3}", "sam sampson");
 
 	// booleans
-	prwriteln("boolean: {}", false);
+	prprintln("boolean: {}", false);
 
 	// characters
-	prwriteln("this char: {}", 'M');
+	prprintln("this char: {}", 'M');
 
 	// void pointer
-	prwriteln("void pointer 0x{}", main);
+	prprintln("void pointer 0x{}", main);
 
 	// write to a std::string
-	const std::string stdstr = prswriteln("{}, some more numbers {}", 3+9, 32);
-	press::write("std::string: {}", stdstr);
+	const std::string stdstr = prsprintln("{}, some more numbers {}", 3+9, 32);
+	press::print("std::string: {}", stdstr);
 
 	// write to a buffer (like snprintf)
 	char cool[13];
-	prbwrite(cool, sizeof(cool), "cool {}", 12.23589f);
-	prwriteln("string: {}, {} chars", cool, strlen(cool));
+	prbprint(cool, sizeof(cool), "cool {}", 12.23589f);
+	prprintln("string: {}, {} chars", cool, strlen(cool));
 
 	// positional specifiers
-	prwriteln("{@2}, {05@1}, {-4@2}", 31, 55);
+	prprintln("{@2}, {05@1}, {-4@2}", 31, 55);
 
 	// write to a struct FILE*
 	FILE *file = fopen("/tmp/test.txt", "w");
 	if(file)
 	{
-		prfwriteln(file, "this is a cool {}", "function");
+		prfprintln(file, "this is a cool {}", "function");
 		fclose(file);
 	}
 
 	// user defined type
 	my_custom_class mcc;
-	prwriteln("custom type: {}", mcc);
+	prprintln("custom type: {}", mcc);
 
 	// these examples are deliberately malformed to demonstrate robustness
-	press::writeln("unbalanced brackets {{ {{ {{");
-	press::writeln("unbalanced brackets { {}", 33);
-	press::writeln("unbalanced brackets {");
-	press::writeln("not enough params {} {} {} {}", 33);
-	press::writeln("bad positional specifiers {@0} {@33}", 33, 33);
-	press::writeln("malformed specifiers {hello} {coolio julio}", 33, 33);
+	press::println("unbalanced brackets {{ {{ {{");
+	press::println("unbalanced brackets { {}", 33);
+	press::println("unbalanced brackets {");
+	press::println("not enough params {} {} {} {}", 33);
+	press::println("bad positional specifiers {@0} {@33}", 33, 33);
+	press::println("malformed specifiers {hello} {coolio julio}", 33, 33);
 
-	press::fwriteln(stderr, "hello");
-	press::fwriteln(stderr, "hello");
+	press::fprintln(stderr, "hello");
+	press::fprintln(stderr, "hello");
 	return 0;
 }
 
 static int number = 1;
 template <typename... Ts> static void check(const char *expected, const char *fmt, const Ts&... ts)
 {
-	const std::string got = press::swrite(fmt, ts...);
+	const std::string got = press::sprint(fmt, ts...);
 	if(got != expected)
 	{
 		fprintf(stderr, "error!! expected \"%s\", got \"%s\"\n", expected, got.c_str());

@@ -5,3 +5,4 @@ test
 bench
 *.so
 *.dll
+CMakeLists.txt.user

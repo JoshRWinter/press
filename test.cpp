@@ -7,6 +7,7 @@ struct my_custom_class
 	my_custom_class() : t(time(NULL)) {}
 	const time_t t;
 };
+
 namespace press
 {
 	std::string to_string(const my_custom_class &mcc)
@@ -15,7 +16,7 @@ namespace press
 	}
 }
 
-#include "press.h"
+#include "press.hpp"
 
 static void tests();
 

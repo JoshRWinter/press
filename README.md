@@ -9,13 +9,13 @@ Press is a printing tool for human-readable output using printf style syntax, bu
 - Small implementation (less than 1k lines), in a single header file
 - Careful use of templates to reduce code bloat
 - Requires only c++11 or newer compiler
-- Fast, also makes 0 memory allocations
-	- Except for the std::string returned from your overloaded function for a custom type
-	- The press::swrite functions (print to a std::string) allocate memory
+- Fast, also makes 0 memory allocations EXCEPT FOR:
+    - The std::string returned from your overloaded function for a custom type
+	- The press::sprint functions (print to a std::string) allocate memory (because they return a std::string)
 	- If more than 16 parameters are passed to the printing function, a memory allocation must be made to accomodate all of the parameters
 
 # How to use
-- Simply include this header "press.h" and make sure to compile your project with at least c++11
+- Simply include this header "press.hpp" and make sure to compile your project with at least c++11
 - Formatting specifiers are "{}" with optional flags inside the brackets
 - To use press with a custom type, simply overload the `std::string press::to_string(const Myclass&)` function, taking a const-reference to your class, and return a std::string
 
@@ -27,11 +27,11 @@ Optional formatting parameters are accepted inside the {} brackets IN THIS ORDER
 2) Separator flag: optional `,` (comma) for thousands separators as defined by your locale
 
 3) Padding flags: zero or one of the following symbols to control how padding is applied  
-	`0`	The integer parameter should be zero padded, if padding is to be applied  
+    `0`	The integer parameter should be zero padded, if padding is to be applied  
 	`-` (dash) The integer parameter should be left-justified
 
 4) Representation flags: zero or one of the following symbols to control representation, for unsigned integers  
-	`x`	The unsigned integer parameter should be displayed in base 16  
+    `x`	The unsigned integer parameter should be displayed in base 16  
 	`X`	Same as above, but with uppercase ABCDEF  
 	`o` (oh) The unsigned integer parameter should be displayed in base 8
 
